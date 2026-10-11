@@ -1,0 +1,4 @@
+{ "name": "@adforge/ai-orchestrator", "version": "0.1.0", "type": "module", "main": "src/index.ts",
+  "scripts": { "test": "tsx --test test/*.test.ts", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@adforge/creative-schema": "*" },
+  "devDependencies": { "tsx": "^4.19.0", "typescript": "^5.6.0", "@types/node": "^22.0.0" } }
