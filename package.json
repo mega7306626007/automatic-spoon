@@ -1,2 +1,2 @@
-{ "name": "adforge", "private": true, "workspaces": ["packages/*"],
+{ "name": "adforge", "private": true, "workspaces": ["packages/*", "apps/*"],
   "scripts": { "test": "npm test --workspaces --if-present" } }
