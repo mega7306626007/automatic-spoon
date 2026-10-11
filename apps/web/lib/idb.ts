@@ -9,3 +9,9 @@ export async function idbGet<T>(key: string): Promise<T | undefined> {
 export async function idbPut(key: string, val: unknown): Promise<void> {
   const db = await open(); return new Promise((res, rej) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).put(val, key); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
 }
+export async function idbDel(key: string): Promise<void> {
+  const db = await open(); return new Promise((res, rej) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).delete(key); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+}
+export async function idbClear(): Promise<void> {
+  const db = await open(); return new Promise((res, rej) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).clear(); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+}

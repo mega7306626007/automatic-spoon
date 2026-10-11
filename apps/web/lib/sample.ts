@@ -1,12 +1,13 @@
 import type { Project } from "@adforge/creative-schema";
-export const uid = () => crypto.randomUUID();
-export function sampleProject(): Project {
-  const now = new Date().toISOString(), t = (o: object) => ({ rotation: 0, opacity: 1, ...o });
-  return { schemaVersion: 2, id: uid(), type: "image", name: "Untitled ad", createdAt: now, updatedAt: now, assets: [],
-    canvas: { width: 1080, height: 1080, background: { kind: "solid", color: "#0B1026" } },
+export const uid = (): string => (globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+const t = (o: object) => ({ rotation: 0, opacity: 1, ...o });
+export function blankProject(w = 1080, h = 1080, name = "Untitled ad"): Project {
+  const now = new Date().toISOString();
+  return { schemaVersion: 2, id: uid(), type: "image", name, createdAt: now, updatedAt: now, assets: [], canvas: { width: w, height: h, background: { kind: "gradient", angle: 160, stops: [{ offset: 0, color: "#0B1026" }, { offset: 1, color: "#1E1B4B" }] } },
     layers: [
-      t({ id: uid(), name: "Accent", type: "shape", shape: "ellipse", x: 620, y: 560, w: 560, h: 560, fill: { kind: "solid", color: "#7C3AED" }, opacity: 0.9 }),
-      t({ id: uid(), name: "Headline", type: "text", text: "Your Offer Here", x: 80, y: 120, w: 920, h: 220, fontFamily: "Inter, Arial, sans-serif", fontSize: 110, color: "#FFFFFF", align: "left", lineHeight: 1.1, letterSpacing: 0 }),
-      t({ id: uid(), name: "Subtitle", type: "text", text: "Describe it. Design it. Export it.", x: 80, y: 380, w: 760, h: 100, fontFamily: "Inter, Arial, sans-serif", fontSize: 44, color: "#22D3EE", align: "left", lineHeight: 1.2, letterSpacing: 0 }),
+      t({ id: "accent", name: "accent", type: "shape", shape: "ellipse", x: w * 0.55, y: h * 0.55, w: w * 0.5, h: w * 0.5, fill: { kind: "solid", color: "#7C3AED" }, opacity: 0.9 }),
+      t({ id: "headline", name: "headline", type: "text", text: "Your Offer Here", x: w * 0.08, y: h * 0.1, w: w * 0.84, h: h * 0.24, fontFamily: "Inter, Arial, sans-serif", fontSize: w * 0.095, color: "#FFFFFF", align: "left", lineHeight: 1.1, letterSpacing: 0 }),
+      t({ id: "subtitle", name: "subtitle", type: "text", text: "Describe it. Design it. Export it.", x: w * 0.08, y: h * 0.38, w: w * 0.7, h: h * 0.12, fontFamily: "Inter, Arial, sans-serif", fontSize: w * 0.04, color: "#22D3EE", align: "left", lineHeight: 1.2, letterSpacing: 0 }),
     ] as Project["layers"] };
 }
+export const sampleProject = () => blankProject();

@@ -1,4 +1,4 @@
-export const metadata = { title: "AdForge", description: "Local-first AI advertising studio" };
-export default function Root({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body style={{ margin: 0, background: "#0B1026", color: "#E5E7EB", fontFamily: "Inter, system-ui, Arial, sans-serif" }}>{children}</body></html>;
-}
+import "./globals.css";
+export const metadata = { title: "AdForge", description: "Local-first advertising studio", manifest: "/manifest.webmanifest" };
+export const viewport = { themeColor: "#0B1026" };
+export default function Root({ children }: { children: React.ReactNode }) { return <html lang="en"><body>{children}</body></html>; }

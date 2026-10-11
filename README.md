@@ -2,20 +2,21 @@
 Local-first advertising studio (web + Android). No accounts, API keys or backend required.
 
 ## Status
-**Done (verified: unit tests, typecheck, `next build`)**
-- `packages/creative-schema`: versioned project format (v2), validation, v1→v2 migration, geometry, resize, text-overflow estimate.
-- `apps/web` (Stage 2, first slice): editable SVG canvas; add text/rect/ellipse; select, drag, edit properties, reorder, duplicate, delete; undo/redo (Ctrl+Z / Ctrl+Shift+Z); autosave + draft recovery (IndexedDB); resize to Square/Story/Banner; project export/import (JSON, validated); PNG/JPEG export.
+**Done (unit-tested logic, typecheck, production build, server renders)**
+- `packages/creative-schema`: versioned project format (v2), validation, v1→v2 migration, geometry, resize.
+- `packages/template-library`: 10 original parametric templates (all required categories), search, instantiate.
+- `packages/ai-orchestrator`: provider interface, offline copy engine (English, Kiswahili; Sheng flagged unevaluated), consent-gated text-only online adapter, fact/claim validation, fallback.
+- `apps/web` (Next.js, strict TS): Home, Create (editor), Templates, Projects, Brand kits, AI Studio, Settings.
+  - Editor: text/shapes/images (upload, downscale, crop-to-fill + focus), drag/resize/rotate handles, snapping + guides, text wrapping + overflow warnings, solid/gradient backgrounds and fills, borders, shadows, text backgrounds, layer order/hide/lock, undo/redo, keyboard shortcuts, custom sizes and format resize, PNG/JPEG export at 1x/2x.
+  - Storage: IndexedDB; multiple projects, autosave, draft recovery, export/import of `.adforge.json` packages (images embedded), delete.
+  - Brand kits: colours, font, logo, apply to open design / new template.
+  - AI Studio: offline copy, apply-to-layer on click, "Create campaign" (Square/Story/Banner projects).
+  - Installable PWA (manifest, icons, service worker; active on HTTPS) and responsive layout.
 
-- `packages/template-library`: 10 original parametric templates across the 10 required categories (editable layers named headline/subtitle/cta/image), `instantiate`, `searchTemplates`. Tests check validity, in-canvas placement and no default text overflow.
-- `packages/ai-orchestrator`: `CreativeProvider` interface; deterministic offline engine (English, Kiswahili; Sheng flagged as unevaluated); consent-gated, text-only online adapter with injected fetch; `validateCopy` rejects invented figures/claims; fallback orchestration. Tests cover offline use, no-consent, provider failure, invalid output.
+**Not verified: I could not run a real browser in my environment.** Drag/resize/rotate, image upload, PNG/JPEG export correctness, IndexedDB recovery and the service worker need a manual pass. Please test and report problems.
 
-**Not done / not verified**
-- Templates and the AI copilot are libraries only: **not yet wired into the web UI** (no gallery, no copilot panel).
-- Templates are simple parametric layouts; their visual quality has not been reviewed by a person.
-- Kiswahili phrases have not been reviewed by a native speaker. No local language model integrated yet.
-- PNG/JPEG export and drag editing are implemented but not yet browser-tested by me. Please try them.
-- No resize handles, image upload/crop, gradients, snapping/guides, text wrapping, templates, brand kits, PWA, AI copilot, video studio.
-- Android app: not started.
+**Not built**
+- Video studio / MP4 export; Android app; local language model; custom font upload; multi-select; visual quality of templates is unreviewed; Kiswahili copy is unreviewed by a native speaker; Sheng unsupported.
 
 ## Commands
     npm install

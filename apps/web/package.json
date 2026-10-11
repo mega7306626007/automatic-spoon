@@ -1,4 +1,4 @@
 { "name": "@adforge/web", "version": "0.1.0", "private": true, "type": "module",
   "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "test": "tsx --test test/*.test.ts", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@adforge/creative-schema": "*", "next": "^15.0.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "dependencies": { "@adforge/creative-schema": "*", "@adforge/template-library": "*", "@adforge/ai-orchestrator": "*", "next": "^15.0.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
   "devDependencies": { "@types/node": "^22.0.0", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "tsx": "^4.19.0", "typescript": "^5.6.0" } }

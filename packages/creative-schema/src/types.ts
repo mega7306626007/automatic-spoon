@@ -4,9 +4,11 @@
 export const SCHEMA_VERSION = 2;
 export type ProjectType = "image" | "video";
 export interface Fill { kind: "solid" | "gradient"; color?: string; stops?: { offset: number; color: string }[]; angle?: number }
-interface Base { id: string; name: string; x: number; y: number; w: number; h: number; rotation: number; opacity: number; locked?: boolean; visible?: boolean; startMs?: number; endMs?: number }
-export interface TextLayer extends Base { type: "text"; text: string; fontFamily: string; fontSize: number; color: string; align: "left"|"center"|"right"; lineHeight: number; letterSpacing: number }
-export interface ImageLayer extends Base { type: "image"; assetId: string; fit: "cover"|"contain" }
+export interface Border { color: string; width: number }
+export interface Shadow { dx: number; dy: number; blur: number; color: string }
+interface Base { border?: Border; shadow?: Shadow; id: string; name: string; x: number; y: number; w: number; h: number; rotation: number; opacity: number; locked?: boolean; visible?: boolean; startMs?: number; endMs?: number }
+export interface TextLayer extends Base { type: "text"; text: string; fontFamily: string; fontSize: number; color: string; align: "left"|"center"|"right"; lineHeight: number; letterSpacing: number; background?: string }
+export interface ImageLayer extends Base { type: "image"; assetId: string; fit: "cover"|"contain"; focusX?: number; focusY?: number }
 export interface ShapeLayer extends Base { type: "shape"; shape: "rect"|"ellipse"; fill: Fill; cornerRadius?: number }
 export type Layer = TextLayer | ImageLayer | ShapeLayer;
 export interface AssetRef { id: string; kind: "image"|"video"|"audio"|"font"; mime: string; name: string; bytes?: number }
