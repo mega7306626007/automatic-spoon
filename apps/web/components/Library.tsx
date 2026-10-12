@@ -13,30 +13,38 @@ export const CATEGORIES: Category[] = ["product-launch", "retail", "food", "fash
 const label = (c: string) => c.replace("-", " ");
 export const Thumb = ({ p, assets = {} }: { p: Project; assets?: Assets }) => <div className="thumb"><Scene project={p} assets={assets} style={{ maxHeight: 170, maxWidth: "100%" }} /></div>;
 
-export function Home({ s, go, kits, online }: { s: Studio; go: (v: string, cat?: Category) => void; kits: BrandKit[]; online: boolean }) {
+export type Fmt = "square" | "story" | "landscape";
+const fmtOf = (t: { width: number; height: number }): Fmt => (t.width === t.height ? "square" : t.height > t.width ? "story" : "landscape");
+export function Home({ s, go, kits, online }: { s: Studio; go: (v: string, cat?: Category, fmt?: Fmt) => void; kits: BrandKit[]; online: boolean }) {
   const [recent, setRecent] = useState<{ p: Project; a: Assets }[]>([]);
   useEffect(() => { (async () => { const out: { p: Project; a: Assets }[] = []; for (const m of (await listProjects()).slice(0, 4)) { const r = await loadProject(m.id); if (r) out.push({ p: r.project, a: r.assets }); } setRecent(out); })().catch(() => {}); }, []);
-  const create = (w: number, h: number) => { s.openProject(blankProject(w, h)); go("create"); };
-  return <div className="page"><h1>AdForge</h1><p className="sub">Design advertisements in your browser. Everything is saved on this device.</p>
-    <div className="row"><button className="btn primary" onClick={() => create(1080, 1080)}>Create image ad</button><button className="btn" onClick={() => create(1080, 1920)}>Story / status ad</button><button className="btn" onClick={() => go("ai")}>Create campaign</button><button className="btn" onClick={() => go("templates")}>Browse templates</button></div>
-    {s.recovered && <div className="card" style={{ marginTop: 16 }}><b>Draft recovered</b><p className="muted" style={{ margin: "4px 0 10px" }}>“{s.p.name}” was restored from your last session.</p><button className="btn" onClick={() => go("create")}>Continue editing</button></div>}
-    <h2>Recent projects</h2>{recent.length ? <div className="grid">{recent.map(({ p, a }) => <div key={p.id} className="card"><Thumb p={p} assets={a} /><b>{p.name}</b><div className="muted">{p.canvas.width}×{p.canvas.height}</div>
-      <button className="btn" style={{ marginTop: 8 }} onClick={() => { s.openProject(p, a); go("create"); }}>Open</button></div>)}</div> : <p className="muted">Nothing yet. Start from a template or a blank design.</p>}
-    <h2>Template categories</h2><div className="row">{CATEGORIES.map(c => <button key={c} className="chip" onClick={() => go("templates", c)}>{label(c)}</button>)}</div>
-    <h2>Status</h2><div className="card"><div className="ok">● Offline editor ready (works without internet)</div><div className="muted" style={{ marginTop: 4 }}>{online ? "Online AI is enabled. You are asked before any text is sent." : "Online AI is off. The built-in offline copy engine is used."} · {kits.length} brand kit{kits.length === 1 ? "" : "s"}</div>
-      <div className="muted" style={{ marginTop: 4 }}>Not available yet: video ads, Android app.</div></div></div>;
+  const blank = () => { s.openProject(blankProject(1080, 1080)); go("create"); };
+  const formats: [Fmt, string, string, string][] = [["square", "▢", "Post", "Instagram, Facebook or WhatsApp post · 1080×1080"], ["story", "▯", "Story / Status", "Instagram or WhatsApp story, TikTok cover · 1080×1920"], ["landscape", "▭", "Banner", "YouTube thumbnail, website or event banner · 1920×1080"]];
+  return <div className="page"><h1>Make an ad in 3 steps</h1><p className="sub">No account and no internet needed. Everything is saved on this device.</p>
+    <div className="steps">{[["Pick a design", "Choose a ready-made layout below."], ["Change the words", "Type your product, offer and button text. Add your photo or logo."], ["Download", "Get a PNG or JPG to post anywhere."]].map(([t, d], i) => <div key={t} className="card step"><span className="n">{i + 1}</span><div><b>{t}</b><div className="muted">{d}</div></div></div>)}</div>
+    <h2>What are you making?</h2>
+    <div className="grid">{formats.map(([f, icon, t, d]) => <button key={f} className="fmt" onClick={() => go("templates", undefined, f)}><span className="big">{icon}</span><b>{t}</b><span className="muted">{d}</span></button>)}
+      <button className="fmt" onClick={blank}><span className="big">＋</span><b>Blank design</b><span className="muted">Start from an empty canvas</span></button></div>
+    <div className="row" style={{ marginTop: 14 }}><button className="btn" onClick={() => go("ai")}>✨ Need words? Write my ad copy</button></div>
+    {s.recovered && <div className="card" style={{ marginTop: 16 }}><b>Welcome back</b><p className="muted" style={{ margin: "4px 0 10px" }}>Your last design “{s.p.name}” was restored.</p><button className="btn primary" onClick={() => go("create")}>Continue editing</button></div>}
+    {recent.length > 0 && <><h2>Your recent designs</h2><div className="grid">{recent.map(({ p, a }) => <div key={p.id} className="card"><Thumb p={p} assets={a} /><b>{p.name}</b><div className="muted">{p.canvas.width}×{p.canvas.height}</div>
+      <button className="btn" style={{ marginTop: 8 }} onClick={() => { s.openProject(p, a); go("create"); }}>Open</button></div>)}</div></>}
+    <h2>Browse by business type</h2><div className="row">{CATEGORIES.map(c => <button key={c} className="chip" onClick={() => go("templates", c)}>{label(c)}</button>)}</div>
+    <p className="muted" style={{ marginTop: 22 }}>{online ? "Online AI is on (you are asked before text is sent)." : "AI copy runs offline on your device."} · {kits.length} brand kit{kits.length === 1 ? "" : "s"} · Video ads and the Android app are not available yet.</p></div>;
 }
 
-export function Templates({ s, go, kits, initialCat }: { s: Studio; go: (v: string) => void; kits: BrandKit[]; initialCat?: Category }) {
+export function Templates({ s, go, kits, initialCat, initialFmt }: { s: Studio; go: (v: string) => void; kits: BrandKit[]; initialCat?: Category; initialFmt?: Fmt }) {
   const [q, setQ] = useState(""), [cat, setCat] = useState<Category | undefined>(initialCat), [kit, setKit] = useState("");
-  useEffect(() => setCat(initialCat), [initialCat]);
+  const [fmt, setFmt] = useState<Fmt | undefined>(initialFmt);
+  useEffect(() => { setCat(initialCat); setFmt(initialFmt); }, [initialCat, initialFmt]);
   const use = (t: Template) => { let p = instantiate(t, { id: uid() }); const k = kits.find(x => x.id === kit); if (k) p = applyBrandKit(p, k); s.openProject(p, {}); go("create"); };
-  const list = searchTemplates(q, cat);
-  return <div className="page"><h1>Templates</h1><p className="sub">Every element is an editable layer.</p>
+  const list = searchTemplates(q, cat).filter(t => !fmt || fmtOf(t) === fmt);
+  return <div className="page"><h1>Pick a design</h1><p className="sub">Click “Use this design”, then change the words and photos. Everything stays editable.</p>
+    <div className="row" style={{ marginBottom: 10 }}>{([["", "Any size"], ["square", "Post (square)"], ["story", "Story (tall)"], ["landscape", "Banner (wide)"]] as [string, string][]).map(([k, l]) => <button key={k} className={"chip" + ((fmt ?? "") === k ? " on" : "")} onClick={() => setFmt((k || undefined) as Fmt | undefined)}>{l}</button>)}</div>
     <div className="row"><input className="input" style={{ maxWidth: 260 }} placeholder="Search templates" value={q} onChange={e => setQ(e.target.value)} />
       <select className="input" style={{ maxWidth: 200 }} value={kit} onChange={e => setKit(e.target.value)}><option value="">No brand kit</option>{kits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></div>
     <div className="row" style={{ margin: "12px 0" }}><button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat(undefined)}>all</button>{CATEGORIES.map(c => <button key={c} className={"chip" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{label(c)}</button>)}</div>
-    {list.length ? <div className="grid">{list.map(t => <div key={t.id} className="card"><Thumb p={instantiate(t, { id: t.id })} /><b>{t.name}</b><div className="muted">{label(t.category)} · {t.width}×{t.height}</div><button className="btn primary" style={{ marginTop: 8 }} onClick={() => use(t)}>Use template</button></div>)}</div> : <p className="muted">No templates match “{q}”.</p>}
+    {list.length ? <div className="grid">{list.map(t => <div key={t.id} className="card"><Thumb p={instantiate(t, { id: t.id })} /><b>{t.name}</b><div className="muted">{label(t.category)} · {t.width}×{t.height}</div><button className="btn primary" style={{ marginTop: 8 }} onClick={() => use(t)}>Use this design</button></div>)}</div> : <p className="muted">No templates match “{q}”.</p>}
     <p className="muted" style={{ marginTop: 16 }}>{TEMPLATES.length} templates available.</p></div>;
 }
 

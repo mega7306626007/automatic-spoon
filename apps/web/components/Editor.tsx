@@ -13,6 +13,8 @@ import { downscale, type Studio } from "../lib/useStudio";
 const SIZES: Record<string, [number, number]> = { "Square 1080×1080": [1080, 1080], "Portrait 1080×1350": [1080, 1350], "Story 1080×1920": [1080, 1920], "Landscape 1920×1080": [1920, 1080], "Banner 1500×500": [1500, 500] };
 type Drag = { mode: "move" | "resize" | "rotate"; id: string; l: Layer; sx: number; sy: number; k: number; hx: number; hy: number };
 export const saveBlob = (b: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name.replace(/[\\/:*?"<>|]+/g, "_"); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+const NICE: Record<string, string> = { headline: "Headline", subtitle: "Subtitle", cta: "Button text", "cta-bg": "Button", accent: "Accent shape", image: "Photo" };
+const nice = (n: string) => NICE[n] ?? n;
 const solid = (c: string): Fill => ({ kind: "solid", color: c });
 const FillEditor = ({ f, onChange }: { f: Fill; onChange: (f: Fill) => void }) => {
   const c1 = f.kind === "gradient" ? f.stops?.[0]?.color ?? "#000000" : f.color ?? "#000000", c2 = f.stops?.[1]?.color ?? "#7C3AED";
@@ -24,7 +26,9 @@ const FillEditor = ({ f, onChange }: { f: Fill; onChange: (f: Fill) => void }) =
 export function Editor({ s }: { s: Studio }) {
   const { p, assets, sel, setSel } = s, layer = p.layers.find(l => l.id === sel) ?? null;
   const svgRef = useRef<SVGSVGElement>(null), drag = useRef<Drag | null>(null), fileRef = useRef<HTMLInputElement>(null), replaceRef = useRef<HTMLInputElement>(null);
-  const [guides, setGuides] = useState<Guide[]>([]), [msg, setMsg] = useState(""), [scale, setScale] = useState(1), [busy, setBusy] = useState(false);
+  const [guides, setGuides] = useState<Guide[]>([]), [msg, setMsg] = useState(""), [scale, setScale] = useState(1), [busy, setBusy] = useState(false), [help, setHelp] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem("adforge-tips") !== "1") setHelp(true); } catch {} }, []);
+  const closeHelp = () => { setHelp(false); try { localStorage.setItem("adforge-tips", "1"); } catch {} };
   const [cw, setCw] = useState(p.canvas.width), [ch, setCh] = useState(p.canvas.height);
   useEffect(() => { setCw(p.canvas.width); setCh(p.canvas.height); }, [p.canvas.width, p.canvas.height]);
   const duplicate = () => { if (layer) s.add({ ...layer, id: uid(), name: layer.name + " copy", x: layer.x + 30, y: layer.y + 30 }); };
@@ -80,13 +84,16 @@ export function Editor({ s }: { s: Studio }) {
 
   return <div className="editor">
     <div className="stage">
-      <div className="toolbar"><button className="btn" onClick={addText}>+ Text</button><button className="btn" onClick={() => addShape("rect")}>+ Rect</button><button className="btn" onClick={() => addShape("ellipse")}>+ Ellipse</button>
-        <button className="btn" onClick={() => fileRef.current?.click()}>+ Image</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
-        <button className="btn" disabled={!s.canUndo} onClick={s.undo}>Undo</button><button className="btn" disabled={!s.canRedo} onClick={s.redo}>Redo</button>
-        <select className="btn" aria-label="Export scale" value={scale} onChange={e => setScale(+e.target.value)}><option value={1}>1×</option><option value={2}>2×</option></select>
-        <button className="btn primary" disabled={busy} onClick={() => exportImage("png")}>PNG</button><button className="btn" disabled={busy} onClick={() => exportImage("jpeg")}>JPG</button>
-        <button className="btn" onClick={() => saveBlob(new Blob([JSON.stringify(toPackage(p, assets))], { type: "application/json" }), `${p.name}.adforge.json`)}>Save file</button>
-        <span className="muted" style={{ fontSize: 12 }}>{msg || s.status}</span></div>
+      <div className="toolbar">
+        <button className="btn" title="Add a text box" onClick={addText}>＋ Text</button><button className="btn" title="Add a rectangle" onClick={() => addShape("rect")}>▭ Rectangle</button><button className="btn" title="Add a circle" onClick={() => addShape("ellipse")}>◯ Circle</button>
+        <button className="btn" title="Add a photo or logo from your device" onClick={() => fileRef.current?.click()}>🖼 Photo</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
+        <span className="sep" /><button className="btn" title="Undo (Ctrl+Z)" disabled={!s.canUndo} onClick={s.undo}>↶ Undo</button><button className="btn" title="Redo (Ctrl+Y)" disabled={!s.canRedo} onClick={s.redo}>↷ Redo</button>
+        <span style={{ flex: 1 }} /><button className="btn" onClick={() => (help ? closeHelp() : setHelp(true))}>? How it works</button>
+        <button className="btn" title="Save an editable copy of this design as a file" onClick={() => saveBlob(new Blob([JSON.stringify(toPackage(p, assets))], { type: "application/json" }), `${p.name}.adforge.json`)}>Save file</button>
+        <select className="btn" aria-label="Image quality" title="Image quality" value={scale} onChange={e => setScale(+e.target.value)}><option value={1}>Standard quality</option><option value={2}>High quality (2×)</option></select>
+        <button className="btn primary" disabled={busy} onClick={() => exportImage("png")}>⬇ Download PNG</button><button className="btn" disabled={busy} onClick={() => exportImage("jpeg")}>JPG</button></div>
+      {(msg || s.status) && <div className="muted" style={{ padding: "4px 12px", fontSize: 12 }}>{msg || s.status}</div>}
+      {help && <div className="tips"><div><b>How it works</b><ol><li><b>Change the words:</b> type in the “Edit your text” boxes on the right.</li><li><b>Move things:</b> click an item on the design, then drag it. Drag the white squares to resize, the round dot to rotate.</li><li><b>Add things:</b> use ＋ Text, shapes or 🖼 Photo at the top.</li><li><b>Finish:</b> press ⬇ Download PNG. Your work is saved automatically on this device.</li></ol></div><button className="btn" onClick={closeHelp}>Got it</button></div>}
       <div className="canvasWrap"><Scene project={p} assets={assets} svgRef={svgRef} onLayerDown={(e, l) => begin(e, l, "move")} onBackgroundDown={() => setSel(null)} onMove={onMove} onUp={onUp} overlay={overlay}
         style={{ maxWidth: "100%", maxHeight: "100%", width: p.canvas.width >= p.canvas.height ? "min(100%, 900px)" : undefined, height: p.canvas.height > p.canvas.width ? "min(100%, 760px)" : undefined, boxShadow: "0 10px 50px #000a", touchAction: "none" }} /></div>
     </div>
@@ -97,7 +104,7 @@ export function Editor({ s }: { s: Studio }) {
       <details><summary className="muted">Background</summary><div style={{ marginTop: 8 }}><FillEditor f={p.canvas.background} onChange={f => s.mutate(q => ({ ...q, canvas: { ...q.canvas, background: f } }))} /></div></details>
       {bw.map(w => <div key={w} className="warn">⚠ {w}</div>)}
       {layer ? <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
-        <b>{layer.name}</b>
+        <b>{nice(layer.name)}</b>
         {layer.type === "text" && <>
           <textarea className="input" rows={3} value={layer.text} onChange={e => s.upd(layer.id, { text: e.target.value } as Partial<TextLayer>)} />
           <label>Font<select className="input" value={FONTS.find(f => f.stack === layer.fontFamily) ? layer.fontFamily : ""} onChange={e => e.target.value && s.upd(layer.id, { fontFamily: e.target.value } as Partial<TextLayer>)}>{!FONTS.find(f => f.stack === layer.fontFamily) && <option value="">(custom)</option>}{FONTS.map(f => <option key={f.label} value={f.stack}>{f.label}</option>)}</select></label>
@@ -119,9 +126,11 @@ export function Editor({ s }: { s: Studio }) {
         <label>Shadow<span className="row"><input type="checkbox" checked={!!layer.shadow} onChange={e => s.upd(layer.id, { shadow: e.target.checked ? { dx: 0, dy: 12, blur: 24, color: "#000000aa" } : undefined })} />
           {layer.shadow && <input className="input" style={{ width: 70 }} type="number" title="Blur" value={layer.shadow.blur} onChange={e => s.upd(layer.id, { shadow: { ...layer.shadow!, blur: Math.max(0, +e.target.value) } })} />}</span></label>
         <div className="row"><button className="btn" onClick={() => reorderBy(1)}>Forward</button><button className="btn" onClick={() => reorderBy(-1)}>Back</button><button className="btn" onClick={duplicate}>Duplicate</button><button className="btn danger" onClick={s.del}>Delete</button></div>
-      </div> : <div className="muted">Select a layer to edit it. Drag to move; handles resize and rotate (Shift = keep ratio / 15° steps, Alt = no snapping). Arrow keys nudge.</div>}
+      </div> : <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Edit your text</b><span className="muted">Type here. Or click anything on the design to change its colour, size and position.</span>
+        {p.layers.filter((l): l is TextLayer => l.type === "text").map(l => <div key={l.id} style={{ display: "grid", gap: 3 }}><span className="muted">{nice(l.name)}</span><textarea className="input" rows={2} value={l.text} onChange={e => s.upd(l.id, { text: e.target.value } as Partial<TextLayer>)} /></div>)}
+        {!p.layers.some(l => l.type === "text") && <span className="muted">This design has no text yet. Press ＋ Text at the top.</span>}</div>}
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Layers</b>
-        {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : "◆"} {l.name}</span>
+        {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : "◆"} {nice(l.name)}</span>
           <span className="row" style={{ gap: 2 }}><button className="chip" title="Show/hide" onClick={e => { e.stopPropagation(); s.upd(l.id, { visible: l.visible === false }); }}>{l.visible === false ? "show" : "hide"}</button><button className="chip" title="Lock/unlock" onClick={e => { e.stopPropagation(); s.upd(l.id, { locked: !l.locked }); }}>{l.locked ? "unlock" : "lock"}</button></span></div>)}</div>
     </aside></div>;
 }
