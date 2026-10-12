@@ -33,6 +33,8 @@ test("text overflow warning", () => {
   assert.equal(estimateTextOverflow({ text: "Sale", fontSize: 40, w: 300, h: 100, lineHeight: 1.2 }), false); });
 
 test("alignTo centres and edges using the rotated bounding box", () => {
-  const l = base().layers[0]; assert.equal(alignTo(l, { width: 1080, height: 1080 }, "center").x, (1080 - 900) / 2);
-  assert.equal(alignTo(l, { width: 1080, height: 1080 }, "right").x, 180); assert.equal(alignTo(l, { width: 1080, height: 1080 }, "left").x, 0);
-  assert.equal(alignTo(l, { width: 1080, height: 1080 }, "middle").y, 440); const r = { ...l, rotation: 90 }; const a = alignTo(r, { width: 1000, height: 1000 }, "left"); assert.equal(a.x + (900 - 200) / 2, 0 + 0 + (900 - 200) / 2 + a.x - a.x + 0 * 1 + (a.x - a.x)); assert.ok(Math.abs(boundingBox({ ...r, ...a }).x) < 1e-9); });
+  const l = base().layers[0], c = { width: 1080, height: 1080 };
+  assert.equal(alignTo(l, c, "center").x, 90); assert.equal(alignTo(l, c, "right").x, 180); assert.equal(alignTo(l, c, "left").x, 0); assert.equal(alignTo(l, c, "middle").y, 440);
+  const r = { ...l, rotation: 90 }; // rotated 90deg: visual box is 200 wide x 900 tall
+  const left = boundingBox({ ...r, ...alignTo(r, c, "left") }), mid = boundingBox({ ...r, ...alignTo(r, c, "middle") }), right = boundingBox({ ...r, ...alignTo(r, c, "right") });
+  assert.ok(Math.abs(left.x) < 1e-9); assert.ok(Math.abs(mid.y + mid.h / 2 - 540) < 1e-9); assert.ok(Math.abs(right.x + right.w - 1080) < 1e-9); });
