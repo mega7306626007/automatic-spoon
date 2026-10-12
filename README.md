@@ -13,6 +13,14 @@ Local-first advertising studio (web + Android). No accounts, API keys or backend
   - AI Studio: offline copy, apply-to-layer on click, "Create campaign" (Square/Story/Banner projects).
   - Installable PWA (manifest, icons, service worker; active on HTTPS) and responsive layout.
 
+**Automation (new)**
+- Home → "Describe your ad": one sentence in; template picked by keywords, offline copy written, brand kit applied, text auto-fitted, Story + Banner sizes created, captions saved. Prices/offers/dates appear only if typed.
+- Auto-fit text (shrinks to the box, also while resizing), "Shrink to fit", align buttons, "Fix contrast automatically".
+- Smart resize: re-lays out template-style designs for Post/Story/Banner (keeps copy, colours, fonts, photo; scales custom layers).
+- Download all sizes as one ZIP (PNGs + captions.txt); "Make other sizes" creates them as projects.
+- AI Studio: campaign (3 sizes), A/B headline variants, copy all captions. Brand kits: auto-colours from a logo.
+- ZIP writer verified with Python `zipfile` and `unzip -t`.
+
 **Not verified: I could not run a real browser in my environment.** Drag/resize/rotate, image upload, PNG/JPEG export correctness, IndexedDB recovery and the service worker need a manual pass. Please test and report problems.
 
 **Not built**

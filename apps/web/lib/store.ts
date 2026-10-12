@@ -34,3 +34,5 @@ export function parsePackage(json: unknown): { ok: true; project: Project; asset
     return { ok: true, project: r.project, assets, warnings: missing ? [`${missing} image(s) missing from the file; placeholders shown`] : [] };
   } catch (e) { return { ok: false, error: (e as Error).message }; }
 }
+export const saveCaptions = (id: string, text: string) => idbPut("captions:" + id, text);
+export const loadCaptions = (id: string) => idbGet<string>("captions:" + id);

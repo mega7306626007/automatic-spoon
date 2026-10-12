@@ -28,3 +28,13 @@ export function estimateTextOverflow(l: { text: string; fontSize: number; w: num
   for (const para of l.text.split("\n")) lines += Math.max(1, Math.ceil(para.length / perLine));
   return lines * l.fontSize * l.lineHeight > l.h;
 }
+
+export type Align = "left" | "center" | "right" | "top" | "middle" | "bottom";
+/** New x/y that aligns a layer's (rotated) bounding box to a canvas edge or centre. */
+export function alignTo(l: Layer, c: { width: number; height: number }, how: Align): { x: number; y: number } {
+  const b = boundingBox(l), dx = l.x - b.x, dy = l.y - b.y;
+  switch (how) {
+    case "left": return { x: dx, y: l.y }; case "center": return { x: (c.width - b.w) / 2 + dx, y: l.y }; case "right": return { x: c.width - b.w + dx, y: l.y };
+    case "top": return { x: l.x, y: dy }; case "middle": return { x: l.x, y: (c.height - b.h) / 2 + dy }; default: return { x: l.x, y: c.height - b.h + dy };
+  }
+}

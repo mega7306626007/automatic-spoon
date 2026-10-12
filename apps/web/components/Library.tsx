@@ -7,6 +7,8 @@ import { saveBlob } from "./Editor";
 import { deleteProject, listProjects, loadProject, parsePackage, toPackage, type Assets, type ProjectMeta } from "../lib/store";
 import { applyBrandKit, type BrandKit } from "../lib/brand";
 import { blankProject, uid } from "../lib/sample";
+import { autoCreate } from "../lib/auto";
+import { saveProject, saveCaptions } from "../lib/store";
 import type { Studio } from "../lib/useStudio";
 
 export const CATEGORIES: Category[] = ["product-launch", "retail", "food", "fashion", "events", "education", "technology", "real-estate", "services", "offers"];
@@ -16,11 +18,18 @@ export const Thumb = ({ p, assets = {} }: { p: Project; assets?: Assets }) => <d
 export type Fmt = "square" | "story" | "landscape";
 const fmtOf = (t: { width: number; height: number }): Fmt => (t.width === t.height ? "square" : t.height > t.width ? "story" : "landscape");
 export function Home({ s, go, kits, online }: { s: Studio; go: (v: string, cat?: Category, fmt?: Fmt) => void; kits: BrandKit[]; online: boolean }) {
+  const [idea, setIdea] = useState(""), [busy, setBusy] = useState(false), [allSizes, setAllSizes] = useState(true), [note, setNote] = useState("");
+  const quick = async () => { if (!idea.trim() || busy) return; setBusy(true); setNote(""); try { const r = await autoCreate(idea, { kit: kits[0], allSizes });
+    for (const e of r.extras) await saveProject(e, {}); await saveCaptions(r.project.id, r.captions); s.openProject(r.project, {}); go("create"); } catch (e) { setNote("Could not create the ad: " + (e as Error).message); } finally { setBusy(false); } };
   const [recent, setRecent] = useState<{ p: Project; a: Assets }[]>([]);
   useEffect(() => { (async () => { const out: { p: Project; a: Assets }[] = []; for (const m of (await listProjects()).slice(0, 4)) { const r = await loadProject(m.id); if (r) out.push({ p: r.project, a: r.assets }); } setRecent(out); })().catch(() => {}); }, []);
   const blank = () => { s.openProject(blankProject(1080, 1080)); go("create"); };
   const formats: [Fmt, string, string, string][] = [["square", "▢", "Post", "Instagram, Facebook or WhatsApp post · 1080×1080"], ["story", "▯", "Story / Status", "Instagram or WhatsApp story, TikTok cover · 1080×1920"], ["landscape", "▭", "Banner", "YouTube thumbnail, website or event banner · 1920×1080"]];
   return <div className="page"><h1>Make an ad in 3 steps</h1><p className="sub">No account and no internet needed. Everything is saved on this device.</p>
+    <div className="card" style={{ marginBottom: 16, borderColor: "var(--violet)" }}><b>✨ Describe your ad. We build it for you.</b>
+      <div className="muted" style={{ margin: "4px 0 10px" }}>Example: “Mama Pima bakery fresh bread 20% off this weekend”. We pick a design, write the words, fit the text and make Story and Banner sizes. Prices and discounts appear only if you type them.</div>
+      <div className="row"><input className="input" style={{ flex: 1, minWidth: 240 }} aria-label="Describe your ad" placeholder="What are you advertising?" value={idea} onChange={e => setIdea(e.target.value)} onKeyDown={e => e.key === "Enter" && quick()} /><button className="btn primary" disabled={busy || !idea.trim()} onClick={quick}>{busy ? "Creating…" : "Create my ad"}</button></div>
+      <label className="row muted" style={{ marginTop: 8 }}><input type="checkbox" checked={allSizes} onChange={e => setAllSizes(e.target.checked)} />Also make Story and Banner sizes{kits[0] ? ` · uses brand kit “${kits[0].name}”` : ""}</label>{note && <div className="warn">{note}</div>}</div>
     <div className="steps">{[["Pick a design", "Choose a ready-made layout below."], ["Change the words", "Type your product, offer and button text. Add your photo or logo."], ["Download", "Get a PNG or JPG to post anywhere."]].map(([t, d], i) => <div key={t} className="card step"><span className="n">{i + 1}</span><div><b>{t}</b><div className="muted">{d}</div></div></div>)}</div>
     <h2>What are you making?</h2>
     <div className="grid">{formats.map(([f, icon, t, d]) => <button key={f} className="fmt" onClick={() => go("templates", undefined, f)}><span className="big">{icon}</span><b>{t}</b><span className="muted">{d}</span></button>)}

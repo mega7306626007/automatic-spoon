@@ -1,5 +1,5 @@
 import { test } from "node:test"; import assert from "node:assert/strict";
-import { validateProject, findMissingAssets, migrate, boundingBox, reorder, resizeLayers, estimateTextOverflow, Project } from "../src/index.ts";
+import { alignTo, validateProject, findMissingAssets, migrate, boundingBox, reorder, resizeLayers, estimateTextOverflow, Project } from "../src/index.ts";
 const base = (): Project => ({ schemaVersion: 2, id: "p1", type: "image", name: "T",
   canvas: { width: 1080, height: 1080, background: { kind: "solid", color: "#0B1026" } },
   layers: [{ id: "t1", name: "Headline", type: "text", x: 80, y: 80, w: 900, h: 200, rotation: 0, opacity: 1, text: "Big Sale", fontFamily: "Inter", fontSize: 96, color: "#FFFFFF", align: "left", lineHeight: 1.1, letterSpacing: 0 }],
@@ -31,3 +31,8 @@ test("resize 1080² -> 1080x1920", () => {
 test("text overflow warning", () => {
   assert.equal(estimateTextOverflow({ text: "x".repeat(500), fontSize: 40, w: 300, h: 100, lineHeight: 1.2 }), true);
   assert.equal(estimateTextOverflow({ text: "Sale", fontSize: 40, w: 300, h: 100, lineHeight: 1.2 }), false); });
+
+test("alignTo centres and edges using the rotated bounding box", () => {
+  const l = base().layers[0]; assert.equal(alignTo(l, { width: 1080, height: 1080 }, "center").x, (1080 - 900) / 2);
+  assert.equal(alignTo(l, { width: 1080, height: 1080 }, "right").x, 180); assert.equal(alignTo(l, { width: 1080, height: 1080 }, "left").x, 0);
+  assert.equal(alignTo(l, { width: 1080, height: 1080 }, "middle").y, 440); const r = { ...l, rotation: 90 }; const a = alignTo(r, { width: 1000, height: 1000 }, "left"); assert.equal(a.x + (900 - 200) / 2, 0 + 0 + (900 - 200) / 2 + a.x - a.x + 0 * 1 + (a.x - a.x)); assert.ok(Math.abs(boundingBox({ ...r, ...a }).x) < 1e-9); });

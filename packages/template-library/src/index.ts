@@ -26,8 +26,8 @@ export const TEMPLATES: Template[] = [
   T("offer-special", "Special Offer", "offers", ["sale", "discount", "deal"], [1080, 1920], "centered", P.warm, "Your Offer Here", "Only add an offer you can honour.", "Claim offer", "zoom-in"),
 ];
 const base = { rotation: 0, opacity: 1 };
-const text = (name: string, t: string, x: number, y: number, w: number, h: number, size: number, color: string, align: "left" | "center"): Layer =>
-  ({ ...base, id: name, name, type: "text", text: t, x, y, w, h, fontFamily: "Inter, Arial, sans-serif", fontSize: Math.round(size), color, align, lineHeight: 1.15, letterSpacing: 0 });
+const text = (name: string, t: string, x: number, y: number, w: number, h: number, size: number, color: string, align: "left" | "center", fit = false): Layer =>
+  ({ ...base, id: name, name, type: "text", text: t, x, y, w, h, fontFamily: "Inter, Arial, sans-serif", fontSize: Math.round(size), color, align, lineHeight: 1.15, letterSpacing: 0, ...(fit ? { autoFit: true, fitMax: Math.round(size) } : {}) });
 const rect = (name: string, shape: "rect" | "ellipse", x: number, y: number, w: number, h: number, color: string, opacity = 1, r = 0): Layer =>
   ({ ...base, id: name, name, type: "shape", shape, x, y, w, h, fill: { kind: "solid", color }, opacity, cornerRadius: r });
 export function buildLayers(t: Template, copy = t.copy): Layer[] {
@@ -36,8 +36,8 @@ export function buildLayers(t: Template, copy = t.copy): Layer[] {
   const ctaW = Math.min(w * 0.4, 420), ctaH = Math.max(80, h * 0.07), s = Math.min(w, h);
   const out: Layer[] = [rect("accent", "ellipse", w * 0.52, h * (banner ? 0.1 : 0.55), s * 0.7, s * 0.7, c.primary, 0.85)];
   if (!centered) out.push({ ...base, id: "image", name: "image", type: "image", assetId: "placeholder", fit: "cover", x: banner ? w * 0.58 : m, y: banner ? h * 0.12 : h * 0.52, w: banner ? w * 0.34 : w * 0.44, h: banner ? h * 0.7 : h * 0.3 });
-  out.push(text("headline", copy.headline, x, h * 0.08, cw, h * (banner ? 0.4 : 0.26), s * 0.085, c.text, align));
-  out.push(text("subtitle", copy.subtitle, x, h * (banner ? 0.52 : 0.36), cw * (centered ? 1 : 0.75), h * 0.12, s * 0.036, c.secondary, align));
+  out.push(text("headline", copy.headline, x, h * 0.08, cw, h * (banner ? 0.4 : 0.26), s * 0.085, c.text, align, true));
+  out.push(text("subtitle", copy.subtitle, x, h * (banner ? 0.52 : 0.36), cw * (centered ? 1 : 0.75), h * 0.12, s * 0.036, c.secondary, align, true));
   const cx = centered ? (w - ctaW) / 2 : m, cy = h * 0.86;
   out.push(rect("cta-bg", "rect", cx, cy, ctaW, ctaH, c.gold, 1, 12));
   out.push(text("cta", copy.cta, cx, cy + ctaH * 0.22, ctaW, ctaH * 0.6, s * 0.032, "#14110F", "center"));
@@ -52,4 +52,22 @@ export function instantiate(t: Template, opts: { id?: string; name?: string; cop
 export function searchTemplates(query = "", category?: Category): Template[] {
   const q = query.trim().toLowerCase();
   return TEMPLATES.filter(t => (!category || t.category === category) && (!q || [t.name, t.category, ...t.tags].some(s => s.toLowerCase().includes(q))));
+}
+
+const KEYS: [Category, RegExp][] = [
+  ["food", /\b(food|restaurant|cafe|café|bakery|bread|cake|pizza|burger|chicken|coffee|menu|kitchen|nyama|chips|meal|lunch|dinner|juice)\b/i],
+  ["fashion", /\b(fashion|clothes|clothing|dress|shoes?|sneakers?|outfit|boutique|wear|jeans|suit|hair|style|collection)\b/i],
+  ["education", /\b(school|course|class|classes|tuition|training|exam|student|college|lesson|enrol|enroll|academy)\b/i],
+  ["technology", /\b(app|software|tech|gadget|phone|laptop|website|startup|wifi|internet|computer)\b/i],
+  ["real-estate", /\b(house|rent|property|apartment|plot|land|bedroom|estate|airbnb|flat)\b/i],
+  ["events", /\b(event|party|concert|wedding|festival|conference|tickets?|gig|show)\b/i],
+  ["offers", /\b(sale|discount|offer|deal|promo|bargain|clearance|\d+\s?%)/i],
+  ["retail", /\b(shop|store|market|supermarket|duka|wholesale|retail)\b/i],
+  ["services", /\b(repair|salon|barber|cleaning|plumber|plumbing|electrician|photography|delivery|mechanic|laundry|service|services)\b/i],
+  ["product-launch", /\b(launch|new|introducing|arrival)\b/i],
+];
+/** Pick a starter template from free text (keywords only, no AI). Falls back to a product launch layout. */
+export function recommendTemplate(text: string): Template {
+  const cat = KEYS.find(([, re]) => re.test(text))?.[0] ?? "product-launch";
+  return TEMPLATES.find(t => t.category === cat) ?? TEMPLATES[0];
 }

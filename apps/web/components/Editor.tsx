@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { boundingBox, reorder, resizeLayers, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
+import { alignTo, boundingBox, reorder, resizeLayers, type Align, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
 import { Scene } from "./Scene";
 import { snapMove, type Guide } from "../lib/snap";
 import { textOverflows } from "../lib/text";
-import { brandWarnings } from "../lib/brand";
-import { toPackage } from "../lib/store";
+import { brandWarnings, fixContrast } from "../lib/brand";
+import { fitFontSize } from "../lib/autofit";
+import { otherSizes } from "../lib/smart";
+import { renderProjectToBlob } from "../lib/render";
+import { makeZip } from "../lib/zip";
+import { toPackage, saveProject, loadCaptions } from "../lib/store";
 import { FONTS } from "../lib/fonts";
 import { uid } from "../lib/sample";
 import { downscale, type Studio } from "../lib/useStudio";
@@ -46,7 +50,7 @@ export function Editor({ s }: { s: Studio }) {
     else if (d.mode === "resize") { const a = (d.l.rotation * Math.PI) / 180, lx = dx * Math.cos(-a) - dy * Math.sin(-a), ly = dx * Math.sin(-a) + dy * Math.cos(-a);
       let dw = d.hx * lx, dh = d.hy * ly; if ((e.shiftKey || d.l.type === "image") && d.hx && d.hy) dh = (dw * d.l.h) / d.l.w;
       const w = Math.max(10, d.l.w + dw), h = Math.max(10, d.l.h + dh); dw = w - d.l.w; dh = h - d.l.h; const ox = (d.hx * dw) / 2, oy = (d.hy * dh) / 2;
-      const cx = d.l.x + d.l.w / 2 + ox * Math.cos(a) - oy * Math.sin(a), cy = d.l.y + d.l.h / 2 + ox * Math.sin(a) + oy * Math.cos(a); s.liveLayer(d.id, { w, h, x: cx - w / 2, y: cy - h / 2 }); }
+      const cx = d.l.x + d.l.w / 2 + ox * Math.cos(a) - oy * Math.sin(a), cy = d.l.y + d.l.h / 2 + ox * Math.sin(a) + oy * Math.cos(a); const fs = d.l.type === "text" && d.l.autoFit ? { fontSize: fitFontSize({ ...d.l, w, h }) } : {}; s.liveLayer(d.id, { w, h, x: cx - w / 2, y: cy - h / 2, ...fs } as Partial<Layer>); }
     else { const r = svgRef.current!.getBoundingClientRect(), px = (e.clientX - r.left) * d.k, py = (e.clientY - r.top) * d.k, cx = d.l.x + d.l.w / 2, cy = d.l.y + d.l.h / 2;
       let ang = (Math.atan2(py - cy, px - cx) * 180) / Math.PI + 90; if (e.shiftKey) ang = Math.round(ang / 15) * 15; s.liveLayer(d.id, { rotation: Math.round(((ang % 360) + 360) % 360 * 10) / 10 }); } };
   const onUp = () => { drag.current = null; setGuides([]); };
@@ -60,18 +64,21 @@ export function Editor({ s }: { s: Studio }) {
         {!layer.locked && <>{hp.map(([hx, hy]) => <rect key={`${hx}${hy}`} x={cx + (hx * layer.w) / 2 - hs / 2} y={cy + (hy * layer.h) / 2 - hs / 2} width={hs} height={hs} fill="#fff" stroke="#7C3AED" strokeWidth={lw} style={{ cursor: "nwse-resize" }} onPointerDown={e => begin(e, layer, "resize", hx, hy)} />)}
           <line x1={cx} x2={cx} y1={layer.y} y2={layer.y - hs * 2} stroke="#22D3EE" strokeWidth={lw} pointerEvents="none" /><circle cx={cx} cy={layer.y - hs * 2.4} r={hs * 0.7} fill="#22D3EE" style={{ cursor: "grab" }} onPointerDown={e => begin(e, layer, "rotate")} /></>}</g>; })()}</>;
 
+  const stamp = () => p.name.replace(/[^\w\- ]+/g, "").trim() || "ad";
   async function exportImage(fmt: "png" | "jpeg") {
     if (busy) return; setBusy(true);
-    try { setMsg("Preparing…"); const live = svgRef.current!; await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
-      const svg = live.cloneNode(true) as SVGSVGElement; svg.setAttribute("width", String(p.canvas.width)); svg.setAttribute("height", String(p.canvas.height)); svg.removeAttribute("style");
-      const W = Math.round(p.canvas.width * scale), H = Math.round(p.canvas.height * scale); if (W * H > 64e6) throw new Error("Image is too large to export; use 1×");
-      const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" })); setMsg("Rendering…");
-      const img = new Image(); await new Promise<void>((ok, no) => { img.onload = () => ok(); img.onerror = () => no(new Error("The design could not be rendered")); img.src = url; });
-      const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"); if (!g) throw new Error("Canvas is not available");
-      if (fmt === "jpeg") { g.fillStyle = "#fff"; g.fillRect(0, 0, W, H); } g.drawImage(img, 0, 0, W, H); URL.revokeObjectURL(url); setMsg("Encoding…");
-      const blob = await new Promise<Blob | null>(r => c.toBlob(r, `image/${fmt}`, 0.95)); if (!blob) throw new Error("Encoding failed (image may be too large)");
-      saveBlob(blob, `${p.name}.${fmt === "jpeg" ? "jpg" : "png"}`); setMsg(`Exported ${W}×${H} ${fmt.toUpperCase()} (${Math.round(blob.size / 1024)} KB)`);
+    try { setMsg("Rendering…"); const blob = await renderProjectToBlob(p, assets, fmt, scale); saveBlob(blob, `${stamp()}.${fmt === "jpeg" ? "jpg" : "png"}`); setMsg(`Downloaded ${Math.round(p.canvas.width * scale)}×${Math.round(p.canvas.height * scale)} ${fmt.toUpperCase()} (${Math.round(blob.size / 1024)} KB)`);
     } catch (e) { setMsg("Export failed: " + (e as Error).message); } finally { setBusy(false); } }
+  async function allSizesZip() {
+    if (busy) return; setBusy(true);
+    try { const designs = [{ label: "current", d: p }, ...otherSizes(p).map(d => ({ label: d.name.split(" — ").pop()!, d }))], files: { name: string; data: Uint8Array }[] = [];
+      for (let i = 0; i < designs.length; i++) { const { label, d } = designs[i]; setMsg(`Rendering ${i + 1}/${designs.length}…`); const blob = await renderProjectToBlob(d, assets, "png", scale);
+        files.push({ name: `${stamp()}-${label.toLowerCase()}-${d.canvas.width}x${d.canvas.height}.png`, data: new Uint8Array(await blob.arrayBuffer()) }); }
+      const cap = await loadCaptions(p.id).catch(() => undefined); if (cap) files.push({ name: "captions.txt", data: new TextEncoder().encode(cap) });
+      saveBlob(new Blob([makeZip(files) as BlobPart], { type: "application/zip" }), `${stamp()}-all-sizes.zip`); setMsg(`Downloaded ZIP with ${files.length} files`);
+    } catch (e) { setMsg("ZIP failed: " + (e as Error).message); } finally { setBusy(false); } }
+  async function makeSizes() {
+    try { const list = otherSizes(p); for (const d of list) await saveProject(d, assets); setMsg(`Created ${list.length} designs (${list.map(d => d.name.split(" — ").pop()).join(", ")}). Find them in Projects.`); } catch (e) { setMsg("Could not create sizes: " + (e as Error).message); } }
   async function pickImage(f: File | undefined, replace?: boolean) { if (!f) return; try { setMsg("Importing image…"); const d = await downscale(f), id = s.registerAsset(d.dataUrl, f.name);
     if (replace && layer?.type === "image") s.upd(layer.id, { assetId: id } as Partial<ImageLayer>); else s.addImageLayer(id, d.w, d.h, f.name.replace(/\.[^.]+$/, "")); setMsg(""); } catch (e) { setMsg((e as Error).message); } }
   const base = { rotation: 0, opacity: 1 };
@@ -81,6 +88,9 @@ export function Editor({ s }: { s: Studio }) {
   const reorderBy = (d: number) => { if (layer) s.mutate(q => ({ ...q, layers: reorder(q.layers, layer.id, q.layers.findIndex(l => l.id === layer.id) + d) })); };
   const num = (k: "x" | "y" | "w" | "h" | "rotation", lab: string) => layer && <label key={k}>{lab}<input className="input" type="number" value={Math.round(layer[k] * 10) / 10} onChange={e => s.upd(layer.id, { [k]: +e.target.value })} /></label>;
   const bw = brandWarnings(p);
+  const setText = (l: TextLayer, text: string) => s.upd(l.id, (l.autoFit ? { text, fontSize: fitFontSize({ ...l, text }) } : { text }) as Partial<TextLayer>);
+  const setSize = (l: TextLayer, v: number) => s.upd(l.id, (l.autoFit ? { fitMax: v, fontSize: fitFontSize({ ...l, fitMax: v }) } : { fontSize: v }) as Partial<TextLayer>);
+  const doAlign = (how: Align) => { if (layer && !layer.locked) s.upd(layer.id, alignTo(layer, p.canvas, how)); };
 
   return <div className="editor">
     <div className="stage">
@@ -91,7 +101,8 @@ export function Editor({ s }: { s: Studio }) {
         <span style={{ flex: 1 }} /><button className="btn" onClick={() => (help ? closeHelp() : setHelp(true))}>? How it works</button>
         <button className="btn" title="Save an editable copy of this design as a file" onClick={() => saveBlob(new Blob([JSON.stringify(toPackage(p, assets))], { type: "application/json" }), `${p.name}.adforge.json`)}>Save file</button>
         <select className="btn" aria-label="Image quality" title="Image quality" value={scale} onChange={e => setScale(+e.target.value)}><option value={1}>Standard quality</option><option value={2}>High quality (2×)</option></select>
-        <button className="btn primary" disabled={busy} onClick={() => exportImage("png")}>⬇ Download PNG</button><button className="btn" disabled={busy} onClick={() => exportImage("jpeg")}>JPG</button></div>
+        <button className="btn primary" disabled={busy} onClick={() => exportImage("png")}>⬇ Download PNG</button><button className="btn" disabled={busy} onClick={() => exportImage("jpeg")}>JPG</button>
+        <button className="btn gold" disabled={busy} title="Re-lays out this design for Post, Story and Banner and downloads them together with your captions" onClick={allSizesZip}>⬇ All sizes (ZIP)</button><button className="btn" title="Creates Story and Banner versions as new designs in Projects" onClick={makeSizes}>⚡ Make other sizes</button></div>
       {(msg || s.status) && <div className="muted" style={{ padding: "4px 12px", fontSize: 12 }}>{msg || s.status}</div>}
       {help && <div className="tips"><div><b>How it works</b><ol><li><b>Change the words:</b> type in the “Edit your text” boxes on the right.</li><li><b>Move things:</b> click an item on the design, then drag it. Drag the white squares to resize, the round dot to rotate.</li><li><b>Add things:</b> use ＋ Text, shapes or 🖼 Photo at the top.</li><li><b>Finish:</b> press ⬇ Download PNG. Your work is saved automatically on this device.</li></ol></div><button className="btn" onClick={closeHelp}>Got it</button></div>}
       <div className="canvasWrap"><Scene project={p} assets={assets} svgRef={svgRef} onLayerDown={(e, l) => begin(e, l, "move")} onBackgroundDown={() => setSel(null)} onMove={onMove} onUp={onUp} overlay={overlay}
@@ -102,17 +113,19 @@ export function Editor({ s }: { s: Studio }) {
       <div className="row"><select className="input" style={{ flex: 1 }} value="" onChange={e => e.target.value && applySize(...SIZES[e.target.value])}><option value="">{p.canvas.width}×{p.canvas.height} — resize…</option>{Object.keys(SIZES).map(k => <option key={k}>{k}</option>)}</select></div>
       <div className="row"><input className="input" style={{ width: 80 }} type="number" aria-label="Width" value={cw} onChange={e => setCw(+e.target.value)} /><span>×</span><input className="input" style={{ width: 80 }} type="number" aria-label="Height" value={ch} onChange={e => setCh(+e.target.value)} /><button className="btn" onClick={() => applySize(cw, ch)}>Set</button></div>
       <details><summary className="muted">Background</summary><div style={{ marginTop: 8 }}><FillEditor f={p.canvas.background} onChange={f => s.mutate(q => ({ ...q, canvas: { ...q.canvas, background: f } }))} /></div></details>
-      {bw.map(w => <div key={w} className="warn">⚠ {w}</div>)}
+      {bw.map(w => <div key={w} className="warn">⚠ {w}</div>)}{bw.length > 0 && <button className="btn" onClick={() => s.mutate(fixContrast)}>✨ Fix contrast automatically</button>}
       {layer ? <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
         <b>{nice(layer.name)}</b>
         {layer.type === "text" && <>
-          <textarea className="input" rows={3} value={layer.text} onChange={e => s.upd(layer.id, { text: e.target.value } as Partial<TextLayer>)} />
+          <textarea className="input" rows={3} value={layer.text} onChange={e => setText(layer, e.target.value)} />
           <label>Font<select className="input" value={FONTS.find(f => f.stack === layer.fontFamily) ? layer.fontFamily : ""} onChange={e => e.target.value && s.upd(layer.id, { fontFamily: e.target.value } as Partial<TextLayer>)}>{!FONTS.find(f => f.stack === layer.fontFamily) && <option value="">(custom)</option>}{FONTS.map(f => <option key={f.label} value={f.stack}>{f.label}</option>)}</select></label>
-          <label>Size<input className="input" type="number" value={Math.round(layer.fontSize)} onChange={e => s.upd(layer.id, { fontSize: Math.max(1, +e.target.value) } as Partial<TextLayer>)} /></label>
+          <label>Size<input className="input" type="number" value={Math.round(layer.fontSize)} onChange={e => setSize(layer, Math.max(1, +e.target.value))} /></label>
           <label>Colour<span className="row"><input type="color" value={layer.color.slice(0, 7)} onChange={e => s.upd(layer.id, { color: e.target.value } as Partial<TextLayer>)} />
             <select className="input" style={{ flex: 1 }} value={layer.align} onChange={e => s.upd(layer.id, { align: e.target.value } as Partial<TextLayer>)}><option>left</option><option>center</option><option>right</option></select></span></label>
           <label>Spacing<span className="row"><input className="input" style={{ width: 70 }} type="number" step="0.5" title="Letter spacing" value={layer.letterSpacing} onChange={e => s.upd(layer.id, { letterSpacing: +e.target.value } as Partial<TextLayer>)} /><input className="input" style={{ width: 70 }} type="number" step="0.05" title="Line height" value={layer.lineHeight} onChange={e => s.upd(layer.id, { lineHeight: Math.max(0.6, +e.target.value) } as Partial<TextLayer>)} /></span></label>
           <label>Text bg<span className="row"><input type="color" value={(layer.background ?? "#000000").slice(0, 7)} onChange={e => s.upd(layer.id, { background: e.target.value } as Partial<TextLayer>)} /><button className="btn" onClick={() => s.upd(layer.id, { background: undefined } as Partial<TextLayer>)}>None</button></span></label>
+          <label>Auto-fit<span className="row"><input type="checkbox" checked={!!layer.autoFit} onChange={e => s.upd(layer.id, (e.target.checked ? { autoFit: true, fitMax: layer.fontSize, fontSize: fitFontSize({ ...layer, fitMax: layer.fontSize }) } : { autoFit: false }) as Partial<TextLayer>)} /><span className="muted">shrink text to fit the box</span></span></label>
+          {warns && <button className="btn" onClick={() => s.upd(layer.id, { fontSize: fitFontSize({ ...layer, fitMax: layer.fontSize }) } as Partial<TextLayer>)}>Shrink to fit now</button>}
           {warns && <div className="warn">⚠ Text doesn’t fit its box. Enlarge the box or reduce the size.</div>}</>}
         {layer.type === "shape" && <><FillEditor f={layer.fill} onChange={f => s.upd(layer.id, { fill: f } as Partial<Layer>)} />{layer.shape === "rect" && <label>Corners<input className="input" type="number" value={layer.cornerRadius ?? 0} onChange={e => s.upd(layer.id, { cornerRadius: Math.max(0, +e.target.value) } as Partial<Layer>)} /></label>}</>}
         {layer.type === "image" && <>
@@ -125,9 +138,10 @@ export function Editor({ s }: { s: Studio }) {
         {layer.type !== "text" && <label>Border<span className="row"><input type="color" value={(layer.border?.color ?? "#FFFFFF").slice(0, 7)} onChange={e => s.upd(layer.id, { border: { color: e.target.value, width: layer.border?.width ?? 6 } })} /><input className="input" style={{ width: 70 }} type="number" min={0} value={layer.border?.width ?? 0} onChange={e => s.upd(layer.id, { border: +e.target.value > 0 ? { color: layer.border?.color ?? "#FFFFFF", width: +e.target.value } : undefined })} /></span></label>}
         <label>Shadow<span className="row"><input type="checkbox" checked={!!layer.shadow} onChange={e => s.upd(layer.id, { shadow: e.target.checked ? { dx: 0, dy: 12, blur: 24, color: "#000000aa" } : undefined })} />
           {layer.shadow && <input className="input" style={{ width: 70 }} type="number" title="Blur" value={layer.shadow.blur} onChange={e => s.upd(layer.id, { shadow: { ...layer.shadow!, blur: Math.max(0, +e.target.value) } })} />}</span></label>
+        <div className="row" aria-label="Align to canvas">{([["left", "⇤"], ["center", "↔"], ["right", "⇥"], ["top", "⤒"], ["middle", "↕"], ["bottom", "⤓"]] as [Align, string][]).map(([a, i]) => <button key={a} className="btn" title={`Align ${a}`} onClick={() => doAlign(a)}>{i}</button>)}</div>
         <div className="row"><button className="btn" onClick={() => reorderBy(1)}>Forward</button><button className="btn" onClick={() => reorderBy(-1)}>Back</button><button className="btn" onClick={duplicate}>Duplicate</button><button className="btn danger" onClick={s.del}>Delete</button></div>
       </div> : <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Edit your text</b><span className="muted">Type here. Or click anything on the design to change its colour, size and position.</span>
-        {p.layers.filter((l): l is TextLayer => l.type === "text").map(l => <div key={l.id} style={{ display: "grid", gap: 3 }}><span className="muted">{nice(l.name)}</span><textarea className="input" rows={2} value={l.text} onChange={e => s.upd(l.id, { text: e.target.value } as Partial<TextLayer>)} /></div>)}
+        {p.layers.filter((l): l is TextLayer => l.type === "text").map(l => <div key={l.id} style={{ display: "grid", gap: 3 }}><span className="muted">{nice(l.name)}</span><textarea className="input" rows={2} value={l.text} onChange={e => setText(l, e.target.value)} /></div>)}
         {!p.layers.some(l => l.type === "text") && <span className="muted">This design has no text yet. Press ＋ Text at the top.</span>}</div>}
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Layers</b>
         {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : "◆"} {nice(l.name)}</span>
