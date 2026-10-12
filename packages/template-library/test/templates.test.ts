@@ -1,22 +1,32 @@
 import { test } from "node:test"; import assert from "node:assert/strict";
-import { validateProject, estimateTextOverflow } from "@adforge/creative-schema";
-import { TEMPLATES, instantiate, searchTemplates, recommendTemplate } from "../src/index.ts";
-test("at least 10 templates, unique ids, all required categories covered", () => {
-  assert.ok(TEMPLATES.length >= 10); assert.equal(new Set(TEMPLATES.map(t => t.id)).size, TEMPLATES.length);
-  for (const c of ["product-launch","retail","food","fashion","events","education","technology","real-estate","services","offers"]) assert.ok(TEMPLATES.some(t => t.category === c), c); });
-test("every template instantiates to a valid project with no default text overflow", () => {
-  for (const t of TEMPLATES) { const p = instantiate(t), r = validateProject(p); assert.ok(r.ok, t.id + JSON.stringify(!r.ok && r.issues));
+import { validateProject, estimateTextOverflow, boundingBox, type Layer } from "@adforge/creative-schema";
+import { TEMPLATES, EMOTION_LIST, instantiate, layoutFor, searchTemplates, recommendTemplate, emotionFor, hooksFor } from "../src/index.ts";
+const SIZES: [number, number][] = [[1080, 1080], [1080, 1350], [1080, 1920], [1920, 1080], [1500, 500]];
+test("20 templates (2 per category), unique ids, every required category covered", () => {
+  assert.equal(TEMPLATES.length, 20); assert.equal(new Set(TEMPLATES.map(t => t.id)).size, 20);
+  for (const c of ["product-launch", "retail", "food", "fashion", "events", "education", "technology", "real-estate", "services", "offers"]) assert.equal(TEMPLATES.filter(t => t.category === c).length, 2, c);
+  assert.ok(TEMPLATES.some(t => t.needsPhoto) && TEMPLATES.some(t => !t.needsPhoto)); });
+test("every template validates, has an emotional hook, and text fits", () => {
+  for (const t of TEMPLATES) { const p = instantiate(t, { copy: { badge: "20% off" } }), r = validateProject(p); assert.ok(r.ok, t.id + JSON.stringify(!r.ok && r.issues));
+    for (const n of ["hook", "headline", "subtitle", "cta", "emoji"]) assert.ok(p.layers.some(l => l.name === n), `${t.id} missing ${n}`);
     for (const l of p.layers) if (l.type === "text") assert.equal(estimateTextOverflow(l), false, `${t.id}/${l.name}`); } });
-test("elements stay inside canvas", () => {
-  for (const t of TEMPLATES) for (const l of instantiate(t).layers) { if (l.name === "accent") continue;
-    assert.ok(l.x >= 0 && l.y >= 0 && l.x + l.w <= t.width + 1 && l.y + l.h <= t.height + 1, `${t.id}/${l.name}`); } });
-test("copy override and search", () => {
-  const head = instantiate(TEMPLATES[0], { copy: { headline: "Hi" } }).layers.find(l => l.name === "headline");
-  assert.equal(head?.type === "text" ? head.text : null, "Hi");
-  assert.ok(searchTemplates("restaurant").some(t => t.id === "food-fresh")); assert.equal(searchTemplates("", "events").length, 1); assert.equal(searchTemplates("zzz").length, 0); });
-
-test("recommendTemplate maps keywords to categories with a safe default", () => {
+test("all four styles keep every element on canvas in every canvas shape (rotation included)", () => {
+  for (const style of ["hero", "split", "burst", "poster"] as const) for (const [W, H] of SIZES) { const { layers } = layoutFor({ style, palette: EMOTION_LIST[0].palette, emojis: ["😍", "🎉", "✨"], W, H, art: "confetti", copy: { headline: "Fresh Bread", subtitle: "Baked this morning.", cta: "Order now", hook: "Taste the moment.", badge: "20% off" } });
+    for (const l of layers as Layer[]) { if (["art", "art2", "accent", "ring", "scrim", "image", "hero-circle"].includes(l.name)) continue; const b = boundingBox(l); const tol = Math.min(W, H) * 0.03;
+      assert.ok(b.x >= -tol && b.y >= -tol && b.x + b.w <= W + tol && b.y + b.h <= H + tol, `${style} ${W}x${H} ${l.name} ${JSON.stringify(b)}`); } } });
+test("badge appears only when an offer is supplied", () => {
+  assert.ok(!instantiate(TEMPLATES[0]).layers.some(l => l.name === "badge")); assert.ok(instantiate(TEMPLATES[0], { copy: { badge: "2 for 1" } }).layers.some(l => l.name === "badge")); });
+test("mood switch changes palette and stickers; meta kept for relayout", () => {
+  const a = instantiate(TEMPLATES[0], { emotion: "love" }), b = instantiate(TEMPLATES[0], { emotion: "urgency" });
+  assert.notEqual(a.meta?.palette.primary, b.meta?.palette.primary); assert.notDeepEqual(a.meta?.emojis, b.meta?.emojis); assert.equal(a.meta?.style, TEMPLATES[0].style); });
+test("recommend, emotion and hooks", () => {
   assert.equal(recommendTemplate("Mama Pima bakery fresh bread").category, "food"); assert.equal(recommendTemplate("3 bedroom house to rent").category, "real-estate");
-  assert.equal(recommendTemplate("Python classes for students").category, "education"); assert.equal(recommendTemplate("Big sale 30% off").category, "offers"); assert.equal(recommendTemplate("xyz").category, "product-launch"); });
-test("headline and subtitle opt in to auto-fit", () => {
-  const p = instantiate(TEMPLATES[0]); for (const n of ["headline", "subtitle"]) { const l = p.layers.find(x => x.name === n); assert.ok(l?.type === "text" && l.autoFit === true && (l.fitMax ?? 0) > 0); } });
+  assert.equal(recommendTemplate("Python classes", { photo: true }).needsPhoto, true); assert.equal(recommendTemplate("Python classes").needsPhoto, false); assert.equal(recommendTemplate("xyz").category, "product-launch");
+  assert.equal(emotionFor("big sale 30% off", "joy"), "urgency"); assert.equal(emotionFor("wedding cakes", "craving"), "love"); assert.equal(emotionFor("plain text", "trust"), "trust");
+  assert.ok(hooksFor("food", "craving").length >= 3); });
+test("search and categories", () => { assert.ok(searchTemplates("restaurant").some(t => t.category === "food")); assert.equal(searchTemplates("", "events").length, 2); assert.equal(searchTemplates("zzz").length, 0); });
+
+test("text block never overlaps the photo card or hero circle (square, tall, wide)", () => {
+  for (const style of ["split", "burst"] as const) for (const [W, H] of [[1080, 1080], [1080, 1350], [1080, 1920]] as const) {
+    const { layers } = layoutFor({ style, palette: EMOTION_LIST[0].palette, emojis: ["😍", "🎉", "✨"], W, H, art: "confetti", copy: { headline: "Fresh Bread", subtitle: "Baked this morning.", cta: "Order now", hook: "Taste the moment." } });
+    const chip = layers.find(l => l.name === "hook-bg")!, above = layers.find(l => l.name === (style === "split" ? "image" : "ring"))!; assert.ok(above.y + above.h <= chip.y + 1, `${style} ${W}x${H}: ${above.y + above.h} > ${chip.y}`); } });

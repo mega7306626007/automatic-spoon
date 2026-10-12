@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { Layer, Project } from "@adforge/creative-schema";
 import { init, commit, replace, checkpoint, undo, redo, type History } from "./history";
 import { saveProject, loadProject, getLastId, setLastId, type Assets } from "./store";
-import { blankProject, uid } from "./sample";
+import { instantiate, recommendTemplate } from "@adforge/template-library";
+import { uid } from "./sample";
+const starter = () => instantiate(recommendTemplate("new product launch"), { id: uid(), name: "My first ad" });
 
 export function downscale(file: File, max = 2048): Promise<{ dataUrl: string; w: number; h: number }> {
   return new Promise((res, rej) => { const url = URL.createObjectURL(file), img = new Image();
@@ -12,7 +14,7 @@ export function downscale(file: File, max = 2048): Promise<{ dataUrl: string; w:
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Could not read that image")); }; img.src = url; });
 }
 export function useStudio() {
-  const [h, setH] = useState<History<Project>>(() => init(blankProject()));
+  const [h, setH] = useState<History<Project>>(() => init(starter()));
   const [assets, setAssets] = useState<Assets>({});
   const [sel, setSel] = useState<string | null>(null);
   const [status, setStatus] = useState("");

@@ -24,3 +24,8 @@ test("package round-trip, missing assets, bad input", () => {
   const r = parsePackage(JSON.parse(JSON.stringify(toPackage(p, {})))); assert.ok(r.ok && r.warnings.length === 1);
   const r2 = parsePackage(JSON.parse(JSON.stringify(toPackage(p, { a1: "data:image/png;base64,AA" })))); assert.ok(r2.ok && r2.warnings.length === 0);
   assert.equal(parsePackage({ nope: 1 }).ok, false); assert.equal(parsePackage(null).ok, false); });
+
+import { instantiate as inst, TEMPLATES as TPL } from "@adforge/template-library";
+test("brand kit on a template design relays out with kit colours and font, keeping words", () => {
+  const p = inst(TPL[2], { copy: { headline: "Keep Me" } }), a = applyBrandKit(p, kit), h = a.layers.find(l => l.name === "headline");
+  assert.ok(h?.type === "text" && h.text === "Keep Me" && h.color === "#ffffff" && h.fontFamily === "Georgia, serif"); assert.equal(a.meta?.palette.primary, "#112233"); assert.equal(a.brandKitId, "k"); });

@@ -13,7 +13,13 @@ Local-first advertising studio (web + Android). No accounts, API keys or backend
   - AI Studio: offline copy, apply-to-layer on click, "Create campaign" (Square/Story/Banner projects).
   - Installable PWA (manifest, icons, service worker; active on HTTPS) and responsive layout.
 
-**Automation (new)**
+**Lively ad design system (new)**
+- 20 templates: 10 categories x (photo layout + emoji/graphic layout). Four styles: full-photo hero, photo card, emoji burst, bold poster. Hook chips, emoji stickers, offer burst badges (only when an offer is typed), CTA pills, sunburst/waves/dots/confetti/bokeh art, photo shade gradients, rounded photo frames.
+- 8 moods (Joy, Craving, Excitement, Trust, Luxury, Urgency, Fresh, Love): change palette, stickers, art and hook ideas; layout can be switched; resize/brand kit/mood all rebuild the arrangement and keep your words and photo.
+- No stock photos are bundled (none can be redistributed from here): add your own photo, or use the graphic layouts. An empty photo area triggers a warning before export.
+- Emoji stickers use the device's emoji font (Segoe UI Emoji / Apple / Noto), so they look different per platform.
+
+**Automation**
 - Home → "Describe your ad": one sentence in; template picked by keywords, offline copy written, brand kit applied, text auto-fitted, Story + Banner sizes created, captions saved. Prices/offers/dates appear only if typed.
 - Auto-fit text (shrinks to the box, also while resizing), "Shrink to fit", align buttons, "Fix contrast automatically".
 - Smart resize: re-lays out template-style designs for Post/Story/Banner (keeps copy, colours, fonts, photo; scales custom layers).

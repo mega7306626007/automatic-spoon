@@ -6,7 +6,9 @@ import { snapMove, type Guide } from "../lib/snap";
 import { textOverflows } from "../lib/text";
 import { brandWarnings, fixContrast } from "../lib/brand";
 import { fitFontSize } from "../lib/autofit";
-import { otherSizes } from "../lib/smart";
+import { otherSizes, relayout } from "../lib/smart";
+import { setPillText } from "../lib/pill";
+import { EMOTION_LIST, TEMPLATES, hooksFor, type Category, type EmotionId } from "@adforge/template-library";
 import { renderProjectToBlob } from "../lib/render";
 import { makeZip } from "../lib/zip";
 import { toPackage, saveProject, loadCaptions } from "../lib/store";
@@ -17,7 +19,9 @@ import { downscale, type Studio } from "../lib/useStudio";
 const SIZES: Record<string, [number, number]> = { "Square 1080×1080": [1080, 1080], "Portrait 1080×1350": [1080, 1350], "Story 1080×1920": [1080, 1920], "Landscape 1920×1080": [1920, 1080], "Banner 1500×500": [1500, 500] };
 type Drag = { mode: "move" | "resize" | "rotate"; id: string; l: Layer; sx: number; sy: number; k: number; hx: number; hy: number };
 export const saveBlob = (b: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name.replace(/[\\/:*?"<>|]+/g, "_"); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
-const NICE: Record<string, string> = { headline: "Headline", subtitle: "Subtitle", cta: "Button text", "cta-bg": "Button", accent: "Accent shape", image: "Photo" };
+const STICKERS = ["😍", "😋", "🔥", "🎉", "✨", "💎", "❤️", "🥰", "🌿", "🚀", "🏡", "👗", "📚", "🛍️", "💡", "🤝", "⏰", "💥", "🎶", "🙌"];
+const LAYOUT_LABEL: Record<string, string> = { hero: "Full photo", split: "Photo card", burst: "Emoji burst", poster: "Bold poster" };
+const NICE: Record<string, string> = { hook: "Hook line", "hook-bg": "Hook chip", emoji: "Sticker", emoji2: "Sticker 2", emoji3: "Sticker 3", badge: "Offer badge", "badge-text": "Offer text", art: "Background art", art2: "Art overlay", scrim: "Photo shade", ring: "Glow ring", "hero-circle": "Hero circle", headline: "Headline", subtitle: "Subtitle", cta: "Button text", "cta-bg": "Button", accent: "Accent shape", image: "Photo" };
 const nice = (n: string) => NICE[n] ?? n;
 const solid = (c: string): Fill => ({ kind: "solid", color: c });
 const FillEditor = ({ f, onChange }: { f: Fill; onChange: (f: Fill) => void }) => {
@@ -66,11 +70,11 @@ export function Editor({ s }: { s: Studio }) {
 
   const stamp = () => p.name.replace(/[^\w\- ]+/g, "").trim() || "ad";
   async function exportImage(fmt: "png" | "jpeg") {
-    if (busy) return; setBusy(true);
+    if (busy || !okToExport()) return; setBusy(true);
     try { setMsg("Rendering…"); const blob = await renderProjectToBlob(p, assets, fmt, scale); saveBlob(blob, `${stamp()}.${fmt === "jpeg" ? "jpg" : "png"}`); setMsg(`Downloaded ${Math.round(p.canvas.width * scale)}×${Math.round(p.canvas.height * scale)} ${fmt.toUpperCase()} (${Math.round(blob.size / 1024)} KB)`);
     } catch (e) { setMsg("Export failed: " + (e as Error).message); } finally { setBusy(false); } }
   async function allSizesZip() {
-    if (busy) return; setBusy(true);
+    if (busy || !okToExport()) return; setBusy(true);
     try { const designs = [{ label: "current", d: p }, ...otherSizes(p).map(d => ({ label: d.name.split(" — ").pop()!, d }))], files: { name: string; data: Uint8Array }[] = [];
       for (let i = 0; i < designs.length; i++) { const { label, d } = designs[i]; setMsg(`Rendering ${i + 1}/${designs.length}…`); const blob = await renderProjectToBlob(d, assets, "png", scale);
         files.push({ name: `${stamp()}-${label.toLowerCase()}-${d.canvas.width}x${d.canvas.height}.png`, data: new Uint8Array(await blob.arrayBuffer()) }); }
@@ -79,8 +83,11 @@ export function Editor({ s }: { s: Studio }) {
     } catch (e) { setMsg("ZIP failed: " + (e as Error).message); } finally { setBusy(false); } }
   async function makeSizes() {
     try { const list = otherSizes(p); for (const d of list) await saveProject(d, assets); setMsg(`Created ${list.length} designs (${list.map(d => d.name.split(" — ").pop()).join(", ")}). Find them in Projects.`); } catch (e) { setMsg("Could not create sizes: " + (e as Error).message); } }
-  async function pickImage(f: File | undefined, replace?: boolean) { if (!f) return; try { setMsg("Importing image…"); const d = await downscale(f), id = s.registerAsset(d.dataUrl, f.name);
-    if (replace && layer?.type === "image") s.upd(layer.id, { assetId: id } as Partial<ImageLayer>); else s.addImageLayer(id, d.w, d.h, f.name.replace(/\.[^.]+$/, "")); setMsg(""); } catch (e) { setMsg((e as Error).message); } }
+  async function pickImage(f: File | undefined, replace?: boolean) { if (!f) return; try { setMsg("Importing photo…"); const d = await downscale(f), id = s.registerAsset(d.dataUrl, f.name);
+    const target = replace && layer?.type === "image" ? layer : p.layers.find(l => l.type === "image" && !assets[l.assetId]);
+    if (target) s.upd(target.id, { assetId: id } as Partial<ImageLayer>); else s.addImageLayer(id, d.w, d.h, f.name.replace(/\.[^.]+$/, "")); setMsg(""); } catch (e) { setMsg((e as Error).message); } }
+  const emptyPhoto = p.layers.some(l => l.type === "image" && !assets[l.assetId]);
+  const okToExport = () => !emptyPhoto || confirm("This design still has an empty photo area. Add your photo first (press 📷 Add photo), or download anyway?");
   const base = { rotation: 0, opacity: 1 };
   const addText = () => s.add({ ...base, id: uid(), name: "Text", type: "text", text: "New text", x: p.canvas.width * 0.1, y: p.canvas.height * 0.1, w: p.canvas.width * 0.6, h: p.canvas.height * 0.12, fontFamily: FONTS[0].stack, fontSize: p.canvas.width * 0.06, color: "#FFFFFF", align: "left", lineHeight: 1.2, letterSpacing: 0 });
   const addShape = (shape: "rect" | "ellipse") => s.add({ ...base, id: uid(), name: shape, type: "shape", shape, x: p.canvas.width * 0.2, y: p.canvas.height * 0.2, w: p.canvas.width * 0.3, h: p.canvas.width * 0.3, fill: solid("#22D3EE") });
@@ -88,7 +95,8 @@ export function Editor({ s }: { s: Studio }) {
   const reorderBy = (d: number) => { if (layer) s.mutate(q => ({ ...q, layers: reorder(q.layers, layer.id, q.layers.findIndex(l => l.id === layer.id) + d) })); };
   const num = (k: "x" | "y" | "w" | "h" | "rotation", lab: string) => layer && <label key={k}>{lab}<input className="input" type="number" value={Math.round(layer[k] * 10) / 10} onChange={e => s.upd(layer.id, { [k]: +e.target.value })} /></label>;
   const bw = brandWarnings(p);
-  const setText = (l: TextLayer, text: string) => s.upd(l.id, (l.autoFit ? { text, fontSize: fitFontSize({ ...l, text }) } : { text }) as Partial<TextLayer>);
+  const hookList = p.meta ? hooksFor((TEMPLATES.find(t => t.id === p.meta?.templateId)?.category ?? "product-launch") as Category, p.meta.emotion as EmotionId) : [];
+  const setText = (l: TextLayer, text: string) => p.meta && (l.name === "hook" || l.name === "cta") ? s.mutate(q => setPillText(q, l.name as "hook" | "cta", text)) : s.upd(l.id, (l.autoFit ? { text, fontSize: fitFontSize({ ...l, text }) } : { text }) as Partial<TextLayer>);
   const setSize = (l: TextLayer, v: number) => s.upd(l.id, (l.autoFit ? { fitMax: v, fontSize: fitFontSize({ ...l, fitMax: v }) } : { fontSize: v }) as Partial<TextLayer>);
   const doAlign = (how: Align) => { if (layer && !layer.locked) s.upd(layer.id, alignTo(layer, p.canvas, how)); };
 
@@ -96,7 +104,7 @@ export function Editor({ s }: { s: Studio }) {
     <div className="stage">
       <div className="toolbar">
         <button className="btn" title="Add a text box" onClick={addText}>＋ Text</button><button className="btn" title="Add a rectangle" onClick={() => addShape("rect")}>▭ Rectangle</button><button className="btn" title="Add a circle" onClick={() => addShape("ellipse")}>◯ Circle</button>
-        <button className="btn" title="Add a photo or logo from your device" onClick={() => fileRef.current?.click()}>🖼 Photo</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
+        <button className="btn" title="Add your photo or logo from your device" onClick={() => fileRef.current?.click()}>📷 Add photo</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
         <span className="sep" /><button className="btn" title="Undo (Ctrl+Z)" disabled={!s.canUndo} onClick={s.undo}>↶ Undo</button><button className="btn" title="Redo (Ctrl+Y)" disabled={!s.canRedo} onClick={s.redo}>↷ Redo</button>
         <span style={{ flex: 1 }} /><button className="btn" onClick={() => (help ? closeHelp() : setHelp(true))}>? How it works</button>
         <button className="btn" title="Save an editable copy of this design as a file" onClick={() => saveBlob(new Blob([JSON.stringify(toPackage(p, assets))], { type: "application/json" }), `${p.name}.adforge.json`)}>Save file</button>
@@ -113,6 +121,12 @@ export function Editor({ s }: { s: Studio }) {
       <div className="row"><select className="input" style={{ flex: 1 }} value="" onChange={e => e.target.value && applySize(...SIZES[e.target.value])}><option value="">{p.canvas.width}×{p.canvas.height} — resize…</option>{Object.keys(SIZES).map(k => <option key={k}>{k}</option>)}</select></div>
       <div className="row"><input className="input" style={{ width: 80 }} type="number" aria-label="Width" value={cw} onChange={e => setCw(+e.target.value)} /><span>×</span><input className="input" style={{ width: 80 }} type="number" aria-label="Height" value={ch} onChange={e => setCh(+e.target.value)} /><button className="btn" onClick={() => applySize(cw, ch)}>Set</button></div>
       <details><summary className="muted">Background</summary><div style={{ marginTop: 8 }}><FillEditor f={p.canvas.background} onChange={f => s.mutate(q => ({ ...q, canvas: { ...q.canvas, background: f } }))} /></div></details>
+      {p.meta && <details open><summary className="muted">Mood, hook & stickers</summary><div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+        <div className="muted">Mood changes colours, stickers and background art. It rebuilds the arrangement (Ctrl+Z undoes it).</div>
+        <div className="row">{EMOTION_LIST.map(e => <button key={e.id} className={"chip" + (p.meta!.emotion === e.id ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { emotion: e.id, palette: e.palette, emojis: e.emojis, art: e.art }))}>{e.emojis[0]} {e.label}</button>)}</div>
+        <div className="muted">Hook line: tap one to use it</div><div className="row">{hookList.map(h => <button key={h} className="chip" onClick={() => s.mutate(q => setPillText(q, "hook", h))}>{h}</button>)}</div>
+        <div className="muted">Main sticker</div><div className="row">{STICKERS.map(e => <button key={e} className="chip" style={{ fontSize: 16 }} onClick={() => s.mutate(q => relayout(q, { emojis: [e, ...(q.meta?.emojis.slice(1) ?? [])] }))}>{e}</button>)}</div>
+        <div className="row"><span className="muted">Layout</span>{(p.meta.needsPhoto ? ["hero", "split"] : ["burst", "poster"]).map(st => <button key={st} className={"chip" + (p.meta!.style === st ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { style: st }))}>{LAYOUT_LABEL[st]}</button>)}</div></div></details>}
       {bw.map(w => <div key={w} className="warn">⚠ {w}</div>)}{bw.length > 0 && <button className="btn" onClick={() => s.mutate(fixContrast)}>✨ Fix contrast automatically</button>}
       {layer ? <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
         <b>{nice(layer.name)}</b>
@@ -124,10 +138,13 @@ export function Editor({ s }: { s: Studio }) {
             <select className="input" style={{ flex: 1 }} value={layer.align} onChange={e => s.upd(layer.id, { align: e.target.value } as Partial<TextLayer>)}><option>left</option><option>center</option><option>right</option></select></span></label>
           <label>Spacing<span className="row"><input className="input" style={{ width: 70 }} type="number" step="0.5" title="Letter spacing" value={layer.letterSpacing} onChange={e => s.upd(layer.id, { letterSpacing: +e.target.value } as Partial<TextLayer>)} /><input className="input" style={{ width: 70 }} type="number" step="0.05" title="Line height" value={layer.lineHeight} onChange={e => s.upd(layer.id, { lineHeight: Math.max(0.6, +e.target.value) } as Partial<TextLayer>)} /></span></label>
           <label>Text bg<span className="row"><input type="color" value={(layer.background ?? "#000000").slice(0, 7)} onChange={e => s.upd(layer.id, { background: e.target.value } as Partial<TextLayer>)} /><button className="btn" onClick={() => s.upd(layer.id, { background: undefined } as Partial<TextLayer>)}>None</button></span></label>
+          <label>Bold<input type="checkbox" checked={!!layer.bold} onChange={e => s.upd(layer.id, { bold: e.target.checked } as Partial<TextLayer>)} /></label>
           <label>Auto-fit<span className="row"><input type="checkbox" checked={!!layer.autoFit} onChange={e => s.upd(layer.id, (e.target.checked ? { autoFit: true, fitMax: layer.fontSize, fontSize: fitFontSize({ ...layer, fitMax: layer.fontSize }) } : { autoFit: false }) as Partial<TextLayer>)} /><span className="muted">shrink text to fit the box</span></span></label>
           {warns && <button className="btn" onClick={() => s.upd(layer.id, { fontSize: fitFontSize({ ...layer, fitMax: layer.fontSize }) } as Partial<TextLayer>)}>Shrink to fit now</button>}
           {warns && <div className="warn">⚠ Text doesn’t fit its box. Enlarge the box or reduce the size.</div>}</>}
         {layer.type === "shape" && <><FillEditor f={layer.fill} onChange={f => s.upd(layer.id, { fill: f } as Partial<Layer>)} />{layer.shape === "rect" && <label>Corners<input className="input" type="number" value={layer.cornerRadius ?? 0} onChange={e => s.upd(layer.id, { cornerRadius: Math.max(0, +e.target.value) } as Partial<Layer>)} /></label>}</>}
+        {layer.type === "art" && <><label>Pattern<select className="input" value={layer.kind} onChange={e => s.upd(layer.id, { kind: e.target.value } as Partial<Layer>)}>{["rays", "waves", "dots", "confetti", "bokeh"].map(k => <option key={k}>{k}</option>)}</select></label>
+          <label>Colours<span className="row"><input type="color" value={layer.color.slice(0, 7)} onChange={e => s.upd(layer.id, { color: e.target.value } as Partial<Layer>)} /><input type="color" value={(layer.color2 ?? layer.color).slice(0, 7)} onChange={e => s.upd(layer.id, { color2: e.target.value } as Partial<Layer>)} /><button className="btn" onClick={() => s.upd(layer.id, { seed: Math.floor(Math.random() * 1e6) } as Partial<Layer>)}>Shuffle</button></span></label></>}
         {layer.type === "image" && <>
           <label>Fit<select className="input" value={layer.fit} onChange={e => s.upd(layer.id, { fit: e.target.value } as Partial<ImageLayer>)}><option value="cover">Crop to fill</option><option value="contain">Fit inside</option></select></label>
           <label>Focus<span className="row"><select className="input" style={{ flex: 1 }} aria-label="Horizontal focus" value={layer.focusX ?? 0.5} onChange={e => s.upd(layer.id, { focusX: +e.target.value } as Partial<ImageLayer>)}><option value={0}>Left</option><option value={0.5}>Centre</option><option value={1}>Right</option></select>
@@ -140,11 +157,11 @@ export function Editor({ s }: { s: Studio }) {
           {layer.shadow && <input className="input" style={{ width: 70 }} type="number" title="Blur" value={layer.shadow.blur} onChange={e => s.upd(layer.id, { shadow: { ...layer.shadow!, blur: Math.max(0, +e.target.value) } })} />}</span></label>
         <div className="row" aria-label="Align to canvas">{([["left", "⇤"], ["center", "↔"], ["right", "⇥"], ["top", "⤒"], ["middle", "↕"], ["bottom", "⤓"]] as [Align, string][]).map(([a, i]) => <button key={a} className="btn" title={`Align ${a}`} onClick={() => doAlign(a)}>{i}</button>)}</div>
         <div className="row"><button className="btn" onClick={() => reorderBy(1)}>Forward</button><button className="btn" onClick={() => reorderBy(-1)}>Back</button><button className="btn" onClick={duplicate}>Duplicate</button><button className="btn danger" onClick={s.del}>Delete</button></div>
-      </div> : <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Edit your text</b><span className="muted">Type here. Or click anything on the design to change its colour, size and position.</span>
+      </div> : <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Edit your text</b>{emptyPhoto && <button className="btn gold" onClick={() => fileRef.current?.click()}>📷 Add your photo</button>}<span className="muted">Type here. Or click anything on the design to change its colour, size and position.</span>
         {p.layers.filter((l): l is TextLayer => l.type === "text").map(l => <div key={l.id} style={{ display: "grid", gap: 3 }}><span className="muted">{nice(l.name)}</span><textarea className="input" rows={2} value={l.text} onChange={e => setText(l, e.target.value)} /></div>)}
         {!p.layers.some(l => l.type === "text") && <span className="muted">This design has no text yet. Press ＋ Text at the top.</span>}</div>}
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Layers</b>
-        {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : "◆"} {nice(l.name)}</span>
+        {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : l.type === "art" ? "✦" : "◆"} {nice(l.name)}</span>
           <span className="row" style={{ gap: 2 }}><button className="chip" title="Show/hide" onClick={e => { e.stopPropagation(); s.upd(l.id, { visible: l.visible === false }); }}>{l.visible === false ? "show" : "hide"}</button><button className="chip" title="Lock/unlock" onClick={e => { e.stopPropagation(); s.upd(l.id, { locked: !l.locked }); }}>{l.locked ? "unlock" : "lock"}</button></span></div>)}</div>
     </aside></div>;
 }

@@ -1,7 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
 import { deterministicProvider, generateCopyWithFallback, onlineProvider, type Brief, type CopyResult, type CreativeProvider, type Tone } from "@adforge/ai-orchestrator";
-import { instantiate, recommendTemplate } from "@adforge/template-library";
+import { emotionFor, hooksFor, instantiate, recommendTemplate } from "@adforge/template-library";
+import { setPillText } from "../lib/pill";
 import type { Project } from "@adforge/creative-schema";
 import { applyBrandKit, kitColorsFromPalette, type BrandKit } from "../lib/brand";
 import { extractPalette, imagePixels } from "../lib/palette";
@@ -47,9 +48,10 @@ export function AiStudio({ s, kits, settings, go }: { s: Studio; kits: BrandKit[
       if (settings.onlineEnabled && settings.endpoint) { const ok = confirm(`Send this brief's text (product, audience, tone, offer, etc.) to ${settings.endpoint}? No images or projects are sent.`);
         if (ok) providers.push(onlineProvider({ endpoint: settings.endpoint, apiKey: settings.apiKey || undefined, consentGranted: () => true })); }
       providers.push(deterministicProvider); setRes(await generateCopyWithFallback(providers, b)); } catch (e) { setMsg("Generation failed: " + (e as Error).message); } finally { setBusy(false); } }
-  const put = (name: "headline" | "subtitle" | "cta", text: string) => { const l = s.p.layers.find(x => x.name === name && x.type === "text"); if (!l) { setMsg(`The open design has no “${name}” text layer. Select a text layer in Create and use “Selected”.`); return; } s.upd(l.id, { text } as never); setMsg(`Applied to ${name} (undo with Ctrl+Z).`); };
+  const put = (name: "hook" | "headline" | "subtitle" | "cta", text: string) => { const l = s.p.layers.find(x => x.name === name && x.type === "text"); if (!l) { setMsg(`The open design has no “${name}” text layer. Select a text layer in Create and use “Selected”.`); return; } if ((name === "hook" || name === "cta") && s.p.meta) s.mutate(q => setPillText(q, name, text)); else s.upd(l.id, { text } as never); setMsg(`Applied to ${name} (undo with Ctrl+Z).`); };
   const putSel = (text: string) => { const l = s.p.layers.find(x => x.id === s.sel); if (!l || l.type !== "text") { setMsg("Select a text layer in Create first."); return; } s.upd(l.id, { text } as never); setMsg("Applied to selected text."); };
-  const baseDesign = (headline: string) => { const k = kits.find(x => x.id === kit); let d = instantiate(recommendTemplate(`${b.product} ${b.audience ?? ""}`), { id: uid(), name: b.product, copy: { headline, subtitle: [b.offer, b.price].filter(Boolean).join(" · ") || res!.copy.supporting[0], cta: res!.copy.ctas[0] } }); if (k) d = applyBrandKit(d, k); return fitAll(d); };
+  const baseDesign = (headline: string) => { const k = kits.find(x => x.id === kit), tpl = recommendTemplate(`${b.product} ${b.audience ?? ""}`), emo = emotionFor(`${b.product} ${b.offer ?? ""}`, tpl.emotion), hooks = hooksFor(tpl.category, emo);
+    let d = instantiate(tpl, { id: uid(), name: b.product, emotion: emo, copy: { headline, subtitle: [b.offer, b.price].filter(Boolean).join(" · ") || res!.copy.supporting[0], cta: res!.copy.ctas[0], hook: hooks[0], badge: b.offer || undefined } }); if (k) d = applyBrandKit(d, k); return fitAll(d); };
   const captionsText = () => [...res!.copy.captions, "", res!.copy.hashtags.join(" ")].join("\n");
   async function campaign() {
     if (!res) return; const base = baseDesign(res.copy.headlines[0]), all = [base, ...otherSizes(base)];
@@ -57,7 +59,8 @@ export function AiStudio({ s, kits, settings, go }: { s: Studio; kits: BrandKit[
   async function variants() {
     if (!res) return; const heads = res.copy.headlines.slice(0, 3); for (const [i, h] of heads.entries()) { const d = { ...baseDesign(h), name: `${b.product} — Variant ${"ABC"[i]}` }; await saveProject(d, {}); }
     setMsg(`Created ${heads.length} A/B variants with different headlines in Projects.`); go("projects"); }
-  const list = (title: string, items: string[], target?: "headline" | "subtitle" | "cta") => items.length > 0 && <div><h2>{title}</h2>{items.map(t => <div key={t} className="card" style={{ marginBottom: 6, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}><span>{t}</span>
+  const tplForHooks = recommendTemplate(b.product), hookIdeas = b.product.trim() ? hooksFor(tplForHooks.category, emotionFor(b.product, tplForHooks.emotion)) : [];
+  const list = (title: string, items: string[], target?: "hook" | "headline" | "subtitle" | "cta") => items.length > 0 && <div><h2>{title}</h2>{items.map(t => <div key={t} className="card" style={{ marginBottom: 6, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}><span>{t}</span>
     <span className="row">{target && <button className="btn" onClick={() => put(target, t)}>Use as {target === "cta" ? "button" : target}</button>}<button className="btn" onClick={() => putSel(t)}>Selected text</button><button className="btn" onClick={() => navigator.clipboard?.writeText(t)}>Copy</button></span></div>)}</div>;
   return <div className="page"><h1>AI Studio</h1><p className="sub">Offline copy suggestions. Nothing changes your design until you press an “apply” button.</p>
     <div className="card" style={{ display: "grid", gap: 8, maxWidth: 640 }}>
@@ -73,7 +76,7 @@ export function AiStudio({ s, kits, settings, go }: { s: Studio; kits: BrandKit[
       <span className="muted">Prices, discounts and claims are never invented: they appear only if you type them above.</span></div>
     {res && <><p className="muted" style={{ marginTop: 14 }}>Source: {res.providerId === "deterministic" ? "offline engine" : res.providerId}{res.notes.length ? " · " + res.notes.join(" · ") : ""}</p>
       <div className="row"><select className="input" style={{ maxWidth: 220 }} value={kit} onChange={e => setKit(e.target.value)}><option value="">No brand kit</option>{kits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select><button className="btn gold" onClick={campaign}>Create campaign (Post + Story + Banner)</button><button className="btn" onClick={variants}>Create A/B variants</button><button className="btn" onClick={() => navigator.clipboard?.writeText(captionsText())}>Copy all captions</button></div>
-      {list("Headlines", res.copy.headlines, "headline")}{list("Supporting copy", res.copy.supporting, "subtitle")}{list("Hooks", res.copy.hooks)}{list("Calls to action", res.copy.ctas, "cta")}{list("Captions", res.copy.captions)}
+      {list("Headlines", res.copy.headlines, "headline")}{list("Emotional hooks", hookIdeas, "hook")}{list("Supporting copy", res.copy.supporting, "subtitle")}{list("Hooks", res.copy.hooks)}{list("Calls to action", res.copy.ctas, "cta")}{list("Captions", res.copy.captions)}
       {res.copy.hashtags.length > 0 && <><h2>Hashtags</h2><div className="row">{res.copy.hashtags.map(h => <span key={h} className="chip">{h}</span>)}</div></>}</>}</div>;
 }
 

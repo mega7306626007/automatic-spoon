@@ -25,7 +25,7 @@ export function resizeLayers<T extends Layer>(layers: T[], from: {width:number;h
 /** Rough overflow estimate (avg glyph ≈ 0.55em). Renderers should measure exactly. */
 export function estimateTextOverflow(l: { text: string; fontSize: number; w: number; h: number; lineHeight: number }): boolean {
   const perLine = Math.max(1, Math.floor(l.w / (l.fontSize * 0.55))); let lines = 0;
-  for (const para of l.text.split("\n")) lines += Math.max(1, Math.ceil(para.length / perLine));
+  for (const para of l.text.split("\n")) lines += Math.max(1, Math.ceil(Array.from(para).length / perLine));
   return lines * l.fontSize * l.lineHeight > l.h;
 }
 

@@ -1,7 +1,9 @@
 import type { Layer, Project } from "@adforge/creative-schema";
+import { relayout } from "./smart";
 export interface BrandKit { id: string; name: string; primary: string; secondary: string; accent: string; background: string; text: string; fontFamily: string; slogan?: string; website?: string; messaging?: string; logo?: string }
 /** Updates colours and fonts of known template roles (by layer name). Text, geometry and all other layers are untouched. */
 export function applyBrandKit(p: Project, k: BrandKit): Project {
+  if (p.meta) return { ...relayout(p, { palette: { bg: k.background, primary: k.primary, secondary: k.secondary, text: k.text, gold: k.accent }, font: k.fontFamily }), brandKitId: k.id };
   const layers = p.layers.map((l): Layer => {
     if (l.type === "shape" && l.name === "accent") return { ...l, fill: { kind: "solid", color: k.primary } };
     if (l.type === "shape" && l.name === "cta-bg") return { ...l, fill: { kind: "solid", color: k.accent } };

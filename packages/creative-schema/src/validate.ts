@@ -1,4 +1,4 @@
-import { Project, Layer, SCHEMA_VERSION } from "./types.ts";
+import { Project, Layer, SCHEMA_VERSION, ART_KINDS } from "./types.ts";
 export interface Issue { path: string; message: string }
 const HEX = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -38,7 +38,9 @@ export function validateProject(input: unknown): { ok: true; project: Project } 
         if (!str(l.assetId)) bad(`${at}.assetId`, "required");
         else if (!assetIds.has(l.assetId)) bad(`${at}.assetId`, `missing asset ${l.assetId}`);
       } else if (l.type === "shape") {
-        if (l.shape !== "rect" && l.shape !== "ellipse") bad(`${at}.shape`, "must be rect|ellipse");
+        if (l.shape !== "rect" && l.shape !== "ellipse" && l.shape !== "burst") bad(`${at}.shape`, "must be rect|ellipse|burst");
+      } else if (l.type === "art") {
+        if (!ART_KINDS.includes(l.kind)) bad(`${at}.kind`, "unknown art kind"); if (!str(l.color) || !HEX.test(l.color)) bad(`${at}.color`, "invalid hex"); if (!num(l.seed)) bad(`${at}.seed`, "must be number");
       } else bad(`${at}.type`, `unknown layer type ${String(l.type)}`);
     });
   }

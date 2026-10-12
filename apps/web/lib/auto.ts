@@ -1,5 +1,5 @@
 import { generateCopyWithFallback, type Brief, type Tone } from "@adforge/ai-orchestrator";
-import { instantiate, recommendTemplate } from "@adforge/template-library";
+import { emotionFor, hooksFor, instantiate, recommendTemplate } from "@adforge/template-library";
 import type { Project } from "@adforge/creative-schema";
 import { applyBrandKit, type BrandKit } from "./brand";
 import { fitAll, otherSizes } from "./smart";
@@ -15,13 +15,18 @@ export function parseIdea(text: string): Idea {
   const words = t.replace(/[,.;:!-]+/g, " ").split(/\s+/).filter(Boolean); while (words.length && /^(at|for|only|just|now|from|on)$/i.test(words[words.length - 1])) words.pop();
   return { product: words.slice(0, 6).join(" ") || text.trim().slice(0, 40), offer, price, when };
 }
-/** One sentence in, finished design(s) out: picks a template, writes offline copy, applies the brand kit, fits text, makes other sizes. */
-export async function autoCreate(idea: string, o: { kit?: BrandKit; tone?: Tone; language?: string; allSizes?: boolean } = {}): Promise<{ project: Project; extras: Project[]; captions: string }> {
-  const parsed = parseIdea(idea), tpl = recommendTemplate(idea);
+const hash = (t: string) => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+export interface Photo { dataUrl: string; w: number; h: number; name?: string }
+/** One sentence in, finished design(s) out: picks a layout and mood, writes an emotional hook and offline copy, uses your photo, applies the brand kit, fits text, makes other sizes. */
+export async function autoCreate(idea: string, o: { kit?: BrandKit; tone?: Tone; language?: string; allSizes?: boolean; photo?: Photo } = {}): Promise<{ project: Project; extras: Project[]; captions: string; assets: Record<string, string> }> {
+  const parsed = parseIdea(idea), tpl = recommendTemplate(idea, { photo: !!o.photo }), emotion = emotionFor(idea, tpl.emotion), hooks = hooksFor(tpl.category, emotion);
   const brief: Brief = { product: parsed.product, tone: o.tone ?? "friendly", language: o.language ?? "en", offer: parsed.offer, price: parsed.price, brandName: o.kit?.name };
   const { copy } = await generateCopyWithFallback([], brief);
-  const subtitle = [parsed.offer, parsed.price, parsed.when].filter(Boolean).join(" · ") || copy.supporting[0];
-  let project = instantiate(tpl, { id: uid(), name: parsed.product, copy: { headline: copy.headlines[0], subtitle, cta: copy.ctas[0] } });
+  const subtitle = [parsed.offer && !o.photo ? undefined : undefined, parsed.price, parsed.when].filter(Boolean).join(" · ") || (parsed.offer ? `${parsed.offer}` : copy.supporting[1] ?? copy.supporting[0]);
+  const photoId = o.photo ? uid() : undefined;
+  let project = instantiate(tpl, { id: uid(), name: parsed.product, emotion, copy: { headline: cap(parsed.product), subtitle, cta: copy.ctas[0], hook: hooks[hash(idea) % hooks.length], badge: parsed.offer }, photo: photoId ? { assetId: photoId } : undefined });
+  const assets: Record<string, string> = {}; if (photoId && o.photo) { assets[photoId] = o.photo.dataUrl; project = { ...project, assets: [...project.assets, { id: photoId, kind: "image", mime: o.photo.dataUrl.slice(5, o.photo.dataUrl.indexOf(";")), name: o.photo.name ?? "Your photo" }] }; }
   if (o.kit) project = applyBrandKit(project, o.kit); project = fitAll(project);
-  return { project, extras: o.allSizes === false ? [] : otherSizes(project), captions: [...copy.captions, "", copy.hashtags.join(" ")].join("\n") };
+  return { project, extras: o.allSizes === false ? [] : otherSizes(project), captions: [...copy.captions, "", copy.hashtags.join(" ")].join("\n"), assets };
 }
