@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { deterministicProvider, generateCopyWithFallback, onlineProvider, type Brief, type CopyResult, type CreativeProvider, type Tone } from "@adforge/ai-orchestrator";
-import { emotionFor, hooksFor, instantiate, recommendTemplate } from "@adforge/template-library";
+import { emotionFor, hooksFor, illoFor, instantiate, recommendTemplate } from "@adforge/template-library";
 import { setPillText } from "../lib/pill";
 import type { Project } from "@adforge/creative-schema";
 import { applyBrandKit, kitColorsFromPalette, type BrandKit } from "../lib/brand";
@@ -51,7 +51,7 @@ export function AiStudio({ s, kits, settings, go }: { s: Studio; kits: BrandKit[
   const put = (name: "hook" | "headline" | "subtitle" | "cta", text: string) => { const l = s.p.layers.find(x => x.name === name && x.type === "text"); if (!l) { setMsg(`The open design has no “${name}” text layer. Select a text layer in Create and use “Selected”.`); return; } if ((name === "hook" || name === "cta") && s.p.meta) s.mutate(q => setPillText(q, name, text)); else s.upd(l.id, { text } as never); setMsg(`Applied to ${name} (undo with Ctrl+Z).`); };
   const putSel = (text: string) => { const l = s.p.layers.find(x => x.id === s.sel); if (!l || l.type !== "text") { setMsg("Select a text layer in Create first."); return; } s.upd(l.id, { text } as never); setMsg("Applied to selected text."); };
   const baseDesign = (headline: string) => { const k = kits.find(x => x.id === kit), tpl = recommendTemplate(`${b.product} ${b.audience ?? ""}`), emo = emotionFor(`${b.product} ${b.offer ?? ""}`, tpl.emotion), hooks = hooksFor(tpl.category, emo);
-    let d = instantiate(tpl, { id: uid(), name: b.product, emotion: emo, copy: { headline, subtitle: [b.offer, b.price].filter(Boolean).join(" · ") || res!.copy.supporting[0], cta: res!.copy.ctas[0], hook: hooks[0], badge: b.offer || undefined } }); if (k) d = applyBrandKit(d, k); return fitAll(d); };
+    let d = instantiate(tpl, { id: uid(), name: b.product, emotion: emo, illo: illoFor(`${b.product} ${b.audience ?? ""}`, tpl.category), copy: { headline, subtitle: [b.offer, b.price].filter(Boolean).join(" · ") || res!.copy.supporting[0], cta: res!.copy.ctas[0], hook: hooks[0], badge: b.offer || undefined } }); if (k) d = applyBrandKit(d, k); return fitAll(d); };
   const captionsText = () => [...res!.copy.captions, "", res!.copy.hashtags.join(" ")].join("\n");
   async function campaign() {
     if (!res) return; const base = baseDesign(res.copy.headlines[0]), all = [base, ...otherSizes(base)];

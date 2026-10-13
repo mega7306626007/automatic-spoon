@@ -48,14 +48,15 @@ export function Home({ s, go, kits, online, settings }: { s: Studio; go: (v: str
 
 export function Templates({ s, go, kits, initialCat, initialFmt }: { s: Studio; go: (v: string) => void; kits: BrandKit[]; initialCat?: Category; initialFmt?: Fmt }) {
   const [q, setQ] = useState(""), [cat, setCat] = useState<Category | undefined>(initialCat), [kit, setKit] = useState("");
-  const [fmt, setFmt] = useState<Fmt | undefined>(initialFmt);
+  const [fmt, setFmt] = useState<Fmt | undefined>(initialFmt), [needs, setNeeds] = useState<"" | "photo" | "graphic">("");
   useEffect(() => { setCat(initialCat); setFmt(initialFmt); }, [initialCat, initialFmt]);
   const use = (t: Template) => { let p = instantiate(t, { id: uid() }); const k = kits.find(x => x.id === kit); if (k) p = applyBrandKit(p, k); s.openProject(p, {}); go("create"); };
-  const list = searchTemplates(q, cat).filter(t => !fmt || fmtOf(t) === fmt);
+  const list = searchTemplates(q, cat).filter(t => !fmt || fmtOf(t) === fmt).filter(t => !needs || (needs === "photo") === t.needsPhoto);
   return <div className="page"><h1>Pick a design</h1><p className="sub">Click “Use this design”, then change the words and photos. Everything stays editable.</p>
     <div className="row" style={{ marginBottom: 10 }}>{([["", "Any size"], ["square", "Post (square)"], ["story", "Story (tall)"], ["landscape", "Banner (wide)"]] as [string, string][]).map(([k, l]) => <button key={k} className={"chip" + ((fmt ?? "") === k ? " on" : "")} onClick={() => setFmt((k || undefined) as Fmt | undefined)}>{l}</button>)}</div>
     <div className="row"><input className="input" style={{ maxWidth: 260 }} placeholder="Search templates" value={q} onChange={e => setQ(e.target.value)} />
       <select className="input" style={{ maxWidth: 200 }} value={kit} onChange={e => setKit(e.target.value)}><option value="">No brand kit</option>{kits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select></div>
+    <div className="row" style={{ marginBottom: 10 }}>{([["", "Any design"], ["graphic", "No photo needed"], ["photo", "Uses my photo"]] as ["" | "photo" | "graphic", string][]).map(([k, l]) => <button key={k} className={"chip" + (needs === k ? " on" : "")} onClick={() => setNeeds(k)}>{l}</button>)}</div>
     <div className="row" style={{ margin: "12px 0" }}><button className={"chip" + (!cat ? " on" : "")} onClick={() => setCat(undefined)}>all</button>{CATEGORIES.map(c => <button key={c} className={"chip" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{label(c)}</button>)}</div>
     {list.length ? <div className="grid">{list.map(t => <div key={t.id} className="card"><Thumb p={instantiate(t, { id: t.id })} /><b>{t.name}</b><div className="muted">{label(t.category)} · {t.width}×{t.height}</div><button className="btn primary" style={{ marginTop: 8 }} onClick={() => use(t)}>Use this design</button></div>)}</div> : <p className="muted">No templates match “{q}”.</p>}
     <p className="muted" style={{ marginTop: 16 }}>{TEMPLATES.length} templates available.</p></div>;

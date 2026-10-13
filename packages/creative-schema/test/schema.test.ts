@@ -38,3 +38,14 @@ test("alignTo centres and edges using the rotated bounding box", () => {
   const r = { ...l, rotation: 90 }; // rotated 90deg: visual box is 200 wide x 900 tall
   const left = boundingBox({ ...r, ...alignTo(r, c, "left") }), mid = boundingBox({ ...r, ...alignTo(r, c, "middle") }), right = boundingBox({ ...r, ...alignTo(r, c, "right") });
   assert.ok(Math.abs(left.x) < 1e-9); assert.ok(Math.abs(mid.y + mid.h / 2 - 540) < 1e-9); assert.ok(Math.abs(right.x + right.w - 1080) < 1e-9); });
+import { ILLUSTRATIONS, ILLO_LABELS, resolvePaint } from "../src/index.ts";
+test("illustrations: every one is well-formed, labelled, resolvable and stays near its 100x100 box", () => {
+  assert.ok(Object.keys(ILLUSTRATIONS).length >= 16); for (const [k, prims] of Object.entries(ILLUSTRATIONS)) { assert.ok(ILLO_LABELS[k], k); assert.ok(prims.length >= 5, k);
+    for (const p of prims) { assert.ok(resolvePaint(p.f), `${k} fill ${p.f}`); if ("s" in p && p.s) assert.ok(resolvePaint(p.s), `${k} stroke ${p.s}`);
+      if (p.t === "rect") assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.w <= 100 && p.y + p.h <= 100, `${k} rect`); if (p.t === "circle") assert.ok(p.x - p.r >= -1 && p.x + p.r <= 101 && p.y - p.r >= -1 && p.y + p.r <= 101, `${k} circle`);
+      if (p.t === "path") for (const n of p.d.match(/-?\d+(\.\d+)?/g) ?? []) assert.ok(+n >= -2 && +n <= 102, `${k} path coord ${n}`); } } });
+test("resolvePaint: tokens, shades, gradients, alpha, invalid", () => {
+  assert.deepEqual(resolvePaint("c1", { c1: "#336699" }), { color: "#336699", opacity: 1 }); assert.deepEqual(resolvePaint("#00000055"), { color: "#000000", opacity: 0x55 / 255 }); assert.equal(resolvePaint("c1d", { c1: "#C86432" })?.color, "#904824"); assert.ok(resolvePaint("c1l", { c1: "#000000" })!.color! > "#000000");
+  assert.deepEqual(resolvePaint("g:#FFFFFF:c2", { c2: "#112233" }), { grad: ["#FFFFFF", "#112233"] }); assert.equal(resolvePaint("nope"), null); assert.equal(resolvePaint("g:c1"), null); assert.deepEqual(resolvePaint("none"), { none: true }); });
+test("illo layer validates; unknown kind rejected", () => {
+  const p: any = base(); p.layers.push({ id: "i", name: "i", type: "illo", x: 0, y: 0, w: 100, h: 100, rotation: 0, opacity: 1, kind: "bread" }); assert.ok(validateProject(p).ok); p.layers[1].kind = "dragon"; assert.ok(!validateProject(p).ok); });

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { type AssetCredit, alignTo, boundingBox, reorder, resizeLayers, type Align, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
+import { ILLO_LABELS, type AssetCredit, alignTo, boundingBox, reorder, resizeLayers, type Align, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
 import { Scene } from "./Scene";
 import { snapMove, type Guide } from "../lib/snap";
 import { textOverflows } from "../lib/text";
@@ -22,8 +22,8 @@ const SIZES: Record<string, [number, number]> = { "Square 1080×1080": [1080, 10
 type Drag = { mode: "move" | "resize" | "rotate"; id: string; l: Layer; sx: number; sy: number; k: number; hx: number; hy: number };
 export const saveBlob = (b: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name.replace(/[\\/:*?"<>|]+/g, "_"); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 const STICKERS = ["😍", "😋", "🔥", "🎉", "✨", "💎", "❤️", "🥰", "🌿", "🚀", "🏡", "👗", "📚", "🛍️", "💡", "🤝", "⏰", "💥", "🎶", "🙌"];
-const LAYOUT_LABEL: Record<string, string> = { hero: "Full photo", split: "Photo card", burst: "Emoji burst", poster: "Bold poster" };
-const NICE: Record<string, string> = { hook: "Hook line", "hook-bg": "Hook chip", emoji: "Sticker", emoji2: "Sticker 2", emoji3: "Sticker 3", badge: "Offer badge", "badge-text": "Offer text", art: "Background art", art2: "Art overlay", scrim: "Photo shade", ring: "Glow ring", "hero-circle": "Hero circle", headline: "Headline", subtitle: "Subtitle", cta: "Button text", "cta-bg": "Button", accent: "Accent shape", image: "Photo" };
+const LAYOUT_LABEL: Record<string, string> = { hero: "Full photo", split: "Photo card", magazine: "Magazine", circle: "Round photo", showcase: "Showcase", studio: "Studio", clean: "Clean card", burst: "Emoji burst", poster: "Bold poster" };
+const NICE: Record<string, string> = { illo: "Illustration", hook: "Hook line", "hook-bg": "Hook chip", emoji: "Sticker", emoji2: "Sticker 2", emoji3: "Sticker 3", badge: "Offer badge", "badge-text": "Offer text", art: "Background art", art2: "Art overlay", scrim: "Photo shade", ring: "Glow ring", "hero-circle": "Hero circle", headline: "Headline", subtitle: "Subtitle", cta: "Button text", "cta-bg": "Button", accent: "Accent shape", image: "Photo" };
 const nice = (n: string) => NICE[n] ?? n;
 const solid = (c: string): Fill => ({ kind: "solid", color: c });
 const FillEditor = ({ f, onChange }: { f: Fill; onChange: (f: Fill) => void }) => {
@@ -129,7 +129,8 @@ export function Editor({ s, settings }: { s: Studio; settings: Settings }) {
         <div className="row">{EMOTION_LIST.map(e => <button key={e.id} className={"chip" + (p.meta!.emotion === e.id ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { emotion: e.id, palette: e.palette, emojis: e.emojis, art: e.art }))}>{e.emojis[0]} {e.label}</button>)}</div>
         <div className="muted">Hook line: tap one to use it</div><div className="row">{hookList.map(h => <button key={h} className="chip" onClick={() => s.mutate(q => setPillText(q, "hook", h))}>{h}</button>)}</div>
         <div className="muted">Main sticker</div><div className="row">{STICKERS.map(e => <button key={e} className="chip" style={{ fontSize: 16 }} onClick={() => s.mutate(q => relayout(q, { emojis: [e, ...(q.meta?.emojis.slice(1) ?? [])] }))}>{e}</button>)}</div>
-        <div className="row"><span className="muted">Layout</span>{(p.meta.needsPhoto ? ["hero", "split"] : ["burst", "poster"]).map(st => <button key={st} className={"chip" + (p.meta!.style === st ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { style: st }))}>{LAYOUT_LABEL[st]}</button>)}</div></div></details>}
+        {["showcase", "studio", "clean"].includes(p.meta.style) && <><div className="muted">Illustration</div><div className="row">{Object.entries(ILLO_LABELS).map(([k, l]) => <button key={k} className={"chip" + (p.meta!.illo === k ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { illo: k }))}>{l}</button>)}</div></>}
+        <div className="row"><span className="muted">Layout</span>{(p.meta.needsPhoto ? ["hero", "split", "magazine", "circle"] : ["showcase", "studio", "clean", "burst", "poster"]).map(st => <button key={st} className={"chip" + (p.meta!.style === st ? " on" : "")} onClick={() => s.mutate(q => relayout(q, { style: st }))}>{LAYOUT_LABEL[st]}</button>)}</div></div></details>}
       {bw.map(w => <div key={w} className="warn">⚠ {w}</div>)}{bw.length > 0 && <button className="btn" onClick={() => s.mutate(fixContrast)}>✨ Fix contrast automatically</button>}
       {layer ? <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
         <b>{nice(layer.name)}</b>

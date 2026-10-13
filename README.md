@@ -19,6 +19,10 @@ Local-first advertising studio (web + Android). No accounts, API keys or backend
 - No stock photos are bundled (none can be redistributed from here): add your own photo, or use the graphic layouts. An empty photo area triggers a warning before export.
 - Emoji stickers use the device's emoji font (Segoe UI Emoji / Apple / Noto), so they look different per platform.
 
+**More realistic designs without photos (new)**
+- 16 original vector illustrations (bread, burger, coffee, shopping bag, T-shirt, balloons, book, laptop, phone, house, key, scissors, toolbox, price tag, gift, rocket) drawn with gradients, highlights and soft shadows. They are a new `illo` layer type in the shared schema (platform renderers draw the primitives; Android must implement the same renderer).
+- 3 new no-photo layouts: Showcase (hero object on a spotlight), Studio (diagonal colour panel), Clean card (light editorial look). 70 templates in total (7 per category). "Create my ad" picks a layout and the right illustration from your words; the editor has an Illustration picker and layout switcher.
+
 **Real photos (new)**
 - 40 templates: every category has 2 photo layouts (full-photo hero / photo card / magazine / round photo) and 2 graphic layouts (emoji burst / bold poster). Switch layout any time in the editor.
 - No photos are bundled: Pexels/Unsplash licences forbid redistributing their photos in another library, and none could be licence-checked from here. Instead:

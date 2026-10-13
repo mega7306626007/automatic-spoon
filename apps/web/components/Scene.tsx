@@ -1,6 +1,6 @@
 "use client";
 import { useId, type ReactNode, type Ref, type PointerEvent as RPE } from "react";
-import type { ArtLayer, Fill, Layer, Project, ShapeLayer } from "@adforge/creative-schema";
+import { ILLUSTRATIONS, resolvePaint, type ArtLayer, type Fill, type IlloLayer, type Layer, type Project, type ShapeLayer } from "@adforge/creative-schema";
 import { wrapLines } from "../lib/text";
 import type { Assets } from "../lib/store";
 
@@ -24,6 +24,14 @@ function art(l: ArtLayer): ReactNode {
   else { for (let i = 0; i < 14; i++) out.push(<circle key={i} cx={r() * w} cy={r() * h} r={m * (0.03 + r() * 0.1)} fill={i % 2 ? c2 : l.color} opacity={0.12 + r() * 0.22} />); }
   return out;
 }
+function illo(l: IlloLayer, pid: string, defs: ReactNode[]): ReactNode {
+  const prims = ILLUSTRATIONS[l.kind]; if (!prims) return null; const k = Math.min(l.w, l.h) / 100, ox = l.x + (l.w - 100 * k) / 2, oy = l.y + (l.h - 100 * k) / 2, col = l.colors ?? {};
+  const fillOf = (spec: string, id: string): { fill: string; fo?: number } => { const r = resolvePaint(spec, col); if (!r || r.none) return { fill: "none" };
+    if (r.grad) { defs.push(<linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={r.grad[0]} /><stop offset="1" stopColor={r.grad[1]} /></linearGradient>); return { fill: `url(#${id})` }; } return { fill: r.color!, fo: r.opacity }; };
+  return <g transform={`translate(${ox} ${oy}) scale(${k})`}>{prims.map((p, i) => { const f = fillOf(p.f, `${pid}i${l.id}${i}`), o = (p.o ?? 1) * (f.fo ?? 1), st = "s" in p && p.s ? resolvePaint(p.s, col) : null, sp = st?.color ? { stroke: st.color, strokeWidth: ("sw" in p && p.sw) || 1, strokeLinecap: "round" as const, strokeLinejoin: "round" as const } : {}, common = { fill: f.fill, opacity: o, ...sp };
+    if (p.t === "rect") return <rect key={i} x={p.x} y={p.y} width={p.w} height={p.h} rx={p.r ?? 0} {...common} />; if (p.t === "circle") return <circle key={i} cx={p.x} cy={p.y} r={p.r} {...common} />;
+    if (p.t === "ellipse") return <ellipse key={i} cx={p.x} cy={p.y} rx={p.rx} ry={p.ry} transform={p.rot ? `rotate(${p.rot} ${p.x} ${p.y})` : undefined} {...common} />; return <path key={i} d={p.d} {...common} />; })}</g>;
+}
 const burstPath = (l: ShapeLayer) => { const n = l.points ?? 14, cx = l.x + l.w / 2, cy = l.y + l.h / 2, R = Math.min(l.w, l.h) / 2, r = R * 0.84; let d = "";
   for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n - Math.PI / 2, rad = i % 2 ? r : R; d += `${i ? "L" : "M"}${(cx + rad * Math.cos(a)).toFixed(1)} ${(cy + rad * Math.sin(a)).toFixed(1)} `; } return d + "Z"; };
 const pos = (v: number | undefined, a: string, b: string, c: string) => (v === undefined ? b : v < 0.34 ? a : v > 0.66 ? c : b);
@@ -38,6 +46,7 @@ export function Scene({ project: p, assets, svgRef, onLayerDown, onBackgroundDow
     let body: ReactNode = null;
     if (l.type === "shape") { const fill = paint(l.fill, `${pid}f${l.id}`, defs);
       body = l.shape === "burst" ? <path d={burstPath(l)} fill={fill} {...stroke} /> : l.shape === "rect" ? <rect x={l.x} y={l.y} width={l.w} height={l.h} rx={l.cornerRadius ?? 0} fill={fill} {...stroke} /> : <ellipse cx={cx} cy={cy} rx={l.w / 2} ry={l.h / 2} fill={fill} {...stroke} />; }
+    else if (l.type === "illo") body = illo(l, pid, defs);
     else if (l.type === "art") { const aid = `${pid}a${l.id}`; defs.push(<clipPath key={aid} id={aid}><rect x={l.x} y={l.y} width={l.w} height={l.h} /></clipPath>); body = <g clipPath={`url(#${aid})`}><g transform={`translate(${l.x} ${l.y})`}>{art(l)}</g></g>; }
     else if (l.type === "image") { const src = assets[l.assetId], rad = l.radius ?? 0, cid = `${pid}c${l.id}`;
       defs.push(<clipPath key={cid} id={cid}><rect x={l.x} y={l.y} width={l.w} height={l.h} rx={rad} /></clipPath>);

@@ -13,10 +13,11 @@ export type ArtKind = "rays" | "waves" | "dots" | "confetti" | "bokeh";
 export const ART_KINDS: ArtKind[] = ["rays", "waves", "dots", "confetti", "bokeh"];
 export interface ArtLayer extends Base { type: "art"; kind: ArtKind; color: string; color2?: string; seed: number; cx?: number; cy?: number }
 export interface ShapeLayer extends Base { type: "shape"; shape: "rect"|"ellipse"|"burst"; points?: number; fill: Fill; cornerRadius?: number }
-export type Layer = TextLayer | ImageLayer | ShapeLayer | ArtLayer;
+export interface IlloLayer extends Base { type: "illo"; kind: string; colors?: Partial<Record<"c1" | "c2" | "c3" | "c4", string>> }
+export type Layer = TextLayer | ImageLayer | ShapeLayer | ArtLayer | IlloLayer;
 export interface Palette { bg: string; primary: string; secondary: string; text: string; gold: string }
 /** Design-system info for template-built ads, so a design can be re-laid out (resize, mood change, brand kit). */
-export interface ProjectMeta { templateId?: string; style: string; emotion: string; emojis: string[]; palette: Palette; art: ArtKind; needsPhoto: boolean; font?: string }
+export interface ProjectMeta { templateId?: string; style: string; emotion: string; emojis: string[]; palette: Palette; art: ArtKind; needsPhoto: boolean; font?: string; illo?: string }
 export interface AssetCredit { author: string; url: string; source: string }
 export interface AssetRef { credit?: AssetCredit; id: string; kind: "image"|"video"|"audio"|"font"; mime: string; name: string; bytes?: number }
 export interface Project {

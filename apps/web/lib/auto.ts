@@ -1,5 +1,5 @@
 import { generateCopyWithFallback, type Brief, type Tone } from "@adforge/ai-orchestrator";
-import { emotionFor, hooksFor, instantiate, recommendTemplate } from "@adforge/template-library";
+import { emotionFor, hooksFor, illoFor, instantiate, recommendTemplate } from "@adforge/template-library";
 import type { AssetCredit, Project } from "@adforge/creative-schema";
 import { CATEGORY_HINT } from "./library";
 import { applyBrandKit, type BrandKit } from "./brand";
@@ -23,12 +23,12 @@ export interface Photo { dataUrl: string; w: number; h: number; name?: string; c
 export const photoQuery = (product: string, category: string) => `${product.split(/\s+/).slice(0, 3).join(" ")} ${CATEGORY_HINT[category] ?? ""}`.trim();
 /** One sentence in, finished design(s) out: picks a layout and mood, writes an emotional hook and offline copy, uses your photo, applies the brand kit, fits text, makes other sizes. */
 export async function autoCreate(idea: string, o: { kit?: BrandKit; tone?: Tone; language?: string; allSizes?: boolean; photo?: Photo } = {}): Promise<{ project: Project; extras: Project[]; captions: string; assets: Record<string, string> }> {
-  const parsed = parseIdea(idea), tpl = recommendTemplate(idea, { photo: !!o.photo }), emotion = emotionFor(idea, tpl.emotion), hooks = hooksFor(tpl.category, emotion);
+  const parsed = parseIdea(idea), tpl = recommendTemplate(idea, { photo: !!o.photo, pick: hash(idea) }), illo = illoFor(idea, tpl.category, hash(idea)), emotion = emotionFor(idea, tpl.emotion), hooks = hooksFor(tpl.category, emotion);
   const brief: Brief = { product: parsed.product, tone: o.tone ?? "friendly", language: o.language ?? "en", offer: parsed.offer, price: parsed.price, brandName: o.kit?.name };
   const { copy } = await generateCopyWithFallback([], brief);
   const subtitle = [parsed.offer && !o.photo ? undefined : undefined, parsed.price, parsed.when].filter(Boolean).join(" · ") || (parsed.offer ? `${parsed.offer}` : copy.supporting[1] ?? copy.supporting[0]);
   const photoId = o.photo ? uid() : undefined;
-  let project = instantiate(tpl, { id: uid(), name: parsed.product, emotion, copy: { headline: cap(parsed.product), subtitle, cta: copy.ctas[0], hook: hooks[hash(idea) % hooks.length], badge: parsed.offer }, photo: photoId ? { assetId: photoId } : undefined });
+  let project = instantiate(tpl, { id: uid(), name: parsed.product, emotion, illo, copy: { headline: cap(parsed.product), subtitle, cta: copy.ctas[0], hook: hooks[hash(idea) % hooks.length], badge: parsed.offer }, photo: photoId ? { assetId: photoId } : undefined });
   const assets: Record<string, string> = {}; if (photoId && o.photo) { assets[photoId] = o.photo.dataUrl; project = { ...project, assets: [...project.assets, { id: photoId, kind: "image", mime: o.photo.dataUrl.slice(5, o.photo.dataUrl.indexOf(";")), name: o.photo.name ?? "Your photo", ...(o.photo.credit ? { credit: o.photo.credit } : {}) }] }; }
   if (o.kit) project = applyBrandKit(project, o.kit); project = fitAll(project);
   return { project, extras: o.allSizes === false ? [] : otherSizes(project), captions: [...copy.captions, "", copy.hashtags.join(" ")].join("\n"), assets };

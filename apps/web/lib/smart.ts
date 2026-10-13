@@ -11,7 +11,7 @@ export function relayout(p: Project, patch: Partial<ProjectMeta> = {}, W = p.can
   const tx = (n: string) => { const l = p.layers.find(x => x.name === n); return l?.type === "text" ? l.text : undefined; };
   const copy: Copy = { headline: tx("headline") ?? "", subtitle: tx("subtitle") ?? "", cta: (tx("cta") ?? "Learn more").replace(/\s*→\s*$/, ""), hook: tx("hook") ?? "", badge: tx("badge-text"), ...over };
   const img = p.layers.find((l): l is ImageLayer => l.name === "image" && l.type === "image"), photo = img && img.assetId !== "placeholder" ? { assetId: img.assetId, fit: img.fit, focusX: img.focusX, focusY: img.focusY } : undefined;
-  const { background, layers } = layoutFor({ style: meta.style as Style, palette: meta.palette, emojis: meta.emojis, W, H, copy, art: meta.art, font: meta.font, photo });
+  const { background, layers } = layoutFor({ style: meta.style as Style, palette: meta.palette, emojis: meta.emojis, W, H, copy, art: meta.art, font: meta.font, photo, illo: meta.illo });
   const extras = resizeLayers(p.layers.filter(l => !ROLE_NAMES.has(l.name)), p.canvas, { width: W, height: H });
   return fitAll({ ...p, meta, canvas: { ...p.canvas, width: W, height: H, background }, layers: [...layers, ...extras] });
 }
