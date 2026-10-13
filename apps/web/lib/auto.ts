@@ -1,6 +1,7 @@
 import { generateCopyWithFallback, type Brief, type Tone } from "@adforge/ai-orchestrator";
 import { emotionFor, hooksFor, instantiate, recommendTemplate } from "@adforge/template-library";
-import type { Project } from "@adforge/creative-schema";
+import type { AssetCredit, Project } from "@adforge/creative-schema";
+import { CATEGORY_HINT } from "./library";
 import { applyBrandKit, type BrandKit } from "./brand";
 import { fitAll, otherSizes } from "./smart";
 import { uid } from "./sample";
@@ -15,9 +16,11 @@ export function parseIdea(text: string): Idea {
   const words = t.replace(/[,.;:!-]+/g, " ").split(/\s+/).filter(Boolean); while (words.length && /^(at|for|only|just|now|from|on)$/i.test(words[words.length - 1])) words.pop();
   return { product: words.slice(0, 6).join(" ") || text.trim().slice(0, 40), offer, price, when };
 }
-const hash = (t: string) => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+export const hash = (t: string) => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-export interface Photo { dataUrl: string; w: number; h: number; name?: string }
+export interface Photo { dataUrl: string; w: number; h: number; name?: string; credit?: AssetCredit }
+/** Search words for a stock photo: the product words plus a category hint. */
+export const photoQuery = (product: string, category: string) => `${product.split(/\s+/).slice(0, 3).join(" ")} ${CATEGORY_HINT[category] ?? ""}`.trim();
 /** One sentence in, finished design(s) out: picks a layout and mood, writes an emotional hook and offline copy, uses your photo, applies the brand kit, fits text, makes other sizes. */
 export async function autoCreate(idea: string, o: { kit?: BrandKit; tone?: Tone; language?: string; allSizes?: boolean; photo?: Photo } = {}): Promise<{ project: Project; extras: Project[]; captions: string; assets: Record<string, string> }> {
   const parsed = parseIdea(idea), tpl = recommendTemplate(idea, { photo: !!o.photo }), emotion = emotionFor(idea, tpl.emotion), hooks = hooksFor(tpl.category, emotion);
@@ -26,7 +29,7 @@ export async function autoCreate(idea: string, o: { kit?: BrandKit; tone?: Tone;
   const subtitle = [parsed.offer && !o.photo ? undefined : undefined, parsed.price, parsed.when].filter(Boolean).join(" · ") || (parsed.offer ? `${parsed.offer}` : copy.supporting[1] ?? copy.supporting[0]);
   const photoId = o.photo ? uid() : undefined;
   let project = instantiate(tpl, { id: uid(), name: parsed.product, emotion, copy: { headline: cap(parsed.product), subtitle, cta: copy.ctas[0], hook: hooks[hash(idea) % hooks.length], badge: parsed.offer }, photo: photoId ? { assetId: photoId } : undefined });
-  const assets: Record<string, string> = {}; if (photoId && o.photo) { assets[photoId] = o.photo.dataUrl; project = { ...project, assets: [...project.assets, { id: photoId, kind: "image", mime: o.photo.dataUrl.slice(5, o.photo.dataUrl.indexOf(";")), name: o.photo.name ?? "Your photo" }] }; }
+  const assets: Record<string, string> = {}; if (photoId && o.photo) { assets[photoId] = o.photo.dataUrl; project = { ...project, assets: [...project.assets, { id: photoId, kind: "image", mime: o.photo.dataUrl.slice(5, o.photo.dataUrl.indexOf(";")), name: o.photo.name ?? "Your photo", ...(o.photo.credit ? { credit: o.photo.credit } : {}) }] }; }
   if (o.kit) project = applyBrandKit(project, o.kit); project = fitAll(project);
   return { project, extras: o.allSizes === false ? [] : otherSizes(project), captions: [...copy.captions, "", copy.hashtags.join(" ")].join("\n"), assets };
 }

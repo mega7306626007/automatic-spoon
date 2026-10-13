@@ -3,8 +3,8 @@ import { idbClear, idbDel, idbGet, idbPut } from "./idb";
 import type { BrandKit } from "./brand";
 export interface ProjectMeta { id: string; name: string; updatedAt: string; width: number; height: number }
 export type Assets = Record<string, string>;
-export interface Settings { onlineEnabled: boolean; endpoint: string; apiKey: string }
-export const defaultSettings: Settings = { onlineEnabled: false, endpoint: "", apiKey: "" };
+export interface Settings { onlineEnabled: boolean; endpoint: string; apiKey: string; photosEnabled: boolean; pexelsKey: string }
+export const defaultSettings: Settings = { onlineEnabled: false, endpoint: "", apiKey: "", photosEnabled: false, pexelsKey: "" };
 export const listProjects = async (): Promise<ProjectMeta[]> => (await idbGet<ProjectMeta[]>("index")) ?? [];
 export async function saveProject(p: Project, assets: Assets): Promise<void> {
   await idbPut("project:" + p.id, { project: p, assets });

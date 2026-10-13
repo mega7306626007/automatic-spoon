@@ -15,6 +15,6 @@ export default function Shell() {
   useEffect(() => { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {}); }, []);
   const go = (v: string, c?: Category, f?: Fmt) => { setCat(c); setFmt(f); setView(v); };
   return <div className="shell"><nav className="nav" aria-label="Main"><div className="brand">ADFORGE</div>{NAV.map(([k, l]) => <button key={k} className={view === k ? "on" : ""} onClick={() => go(k)}>{l}</button>)}</nav>
-    <main className="main">{view === "home" && <Home s={s} go={go} kits={kits} online={settings.onlineEnabled} />}{view === "create" && <Editor s={s} />}{view === "templates" && <Templates s={s} go={go} kits={kits} initialCat={cat} initialFmt={fmt} />}
+    <main className="main">{view === "home" && <Home s={s} go={go} kits={kits} online={settings.onlineEnabled} settings={settings} />}{view === "create" && <Editor s={s} settings={settings} />}{view === "templates" && <Templates s={s} go={go} kits={kits} initialCat={cat} initialFmt={fmt} />}
       {view === "projects" && <Projects s={s} go={go} />}{view === "brands" && <BrandKits kits={kits} setKits={setKits} s={s} go={go} />}{view === "ai" && <AiStudio s={s} kits={kits} settings={settings} go={go} />}{view === "settings" && <SettingsView settings={settings} setSettings={setSettings} />}</main></div>;
 }

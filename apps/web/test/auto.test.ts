@@ -14,7 +14,7 @@ test("smartResize re-lays out any style for any format, keeps copy/photo/custom 
     for (const [w, h] of [[1080, 1920], [1920, 1080], [1080, 1080], [1500, 500]] as const) { const r = smartResize(p, w, h); assert.ok(validateProject(r).ok, `${t.id} ${w}x${h}`); assert.equal(r.canvas.width, w);
       const head = r.layers.find(l => l.name === "headline"); assert.ok(head?.type === "text" && head.text === "Fresh Bread Daily"); assert.ok(r.layers.some(l => l.name === "badge-text"));
       assert.ok(r.layers.some(l => l.id === "x" && Math.abs(l.w / l.h - 2) < 1e-9)); assert.equal(r.meta?.style, t.style); } }
-  assert.equal(otherSizes(instantiate(TEMPLATES[1])).length, 2); assert.equal(otherSizes(instantiate(TEMPLATES[0])).length, 3); });
+  assert.equal(otherSizes(instantiate(TEMPLATES.find(t => t.id === "food-burst")!)).length, 2); assert.equal(otherSizes(instantiate(TEMPLATES[0])).length, 3); });
 test("photo survives relayout; mood change keeps words", () => {
   const p = instantiate(TEMPLATES[0], { photo: { assetId: "a1", focusX: 1 }, copy: { headline: "Hello World" } }); const r = smartResize(p, 1080, 1920), img = r.layers.find(l => l.name === "image");
   assert.ok(img?.type === "image" && img.assetId === "a1" && img.focusX === 1);
@@ -22,7 +22,7 @@ test("photo survives relayout; mood change keeps words", () => {
   assert.ok(h?.type === "text" && h.text === "Hello World"); assert.equal(m.meta?.emotion, "urgency"); assert.notEqual(m.meta?.palette.primary, p.meta?.palette.primary); });
 test("setPillText resizes the chip and keeps it centred when it was", () => {
   const p = instantiate(TEMPLATES[0]), bg0 = p.layers.find(l => l.name === "hook-bg")!, q = setPillText(p, "hook", "A much longer hook line here"), bg1 = q.layers.find(l => l.name === "hook-bg")!;
-  assert.ok(bg1.w > bg0.w); assert.ok(validateProject(q).ok); const c = instantiate(TEMPLATES[1]); const cb = c.layers.find(l => l.name === "hook-bg")!, c2 = setPillText(c, "hook", "Short"), cb2 = c2.layers.find(l => l.name === "hook-bg")!;
+  assert.ok(bg1.w > bg0.w); assert.ok(validateProject(q).ok); const c = instantiate(TEMPLATES.find(t => t.id === "food-burst")!); const cb = c.layers.find(l => l.name === "hook-bg")!, c2 = setPillText(c, "hook", "Short"), cb2 = c2.layers.find(l => l.name === "hook-bg")!;
   assert.ok(Math.abs((cb.x + cb.w / 2) - (cb2.x + cb2.w / 2)) < 3); });
 test("zip structure and CRC", () => {
   const z = makeZip([{ name: "a.txt", data: new TextEncoder().encode("hello") }, { name: "b/ü.png", data: new Uint8Array([1, 2, 3]) }]), dv = new DataView(z.buffer);

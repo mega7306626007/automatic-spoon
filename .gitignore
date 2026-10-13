@@ -4,3 +4,5 @@ node_modules
 .next
 *.tsbuildinfo
 next-env.d.ts
+apps/web/public/stock/*
+!apps/web/public/stock/.gitkeep

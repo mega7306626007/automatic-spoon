@@ -1,9 +1,9 @@
 import type { ArtKind, ArtLayer, Fill, Layer, Palette, Project, ProjectMeta, ShapeLayer, TextLayer } from "@adforge/creative-schema";
 export type { Palette };
 export type Category = "product-launch" | "retail" | "food" | "fashion" | "events" | "education" | "technology" | "real-estate" | "services" | "offers";
-export type Style = "hero" | "split" | "burst" | "poster";
+export type Style = "hero" | "split" | "magazine" | "circle" | "burst" | "poster";
 export type EmotionId = "joy" | "craving" | "excitement" | "trust" | "luxury" | "urgency" | "fresh" | "love";
-export const isPhotoStyle = (s: string) => s === "hero" || s === "split";
+export const isPhotoStyle = (s: string) => s === "hero" || s === "split" || s === "magazine" || s === "circle";
 export interface Copy { headline: string; subtitle: string; cta: string; hook: string; badge?: string }
 export interface Emotion { id: EmotionId; label: string; palette: Palette; emojis: string[]; art: ArtKind; hooks: string[] }
 export const EMOTIONS: Record<EmotionId, Emotion> = {
@@ -32,11 +32,11 @@ const CATS: { cat: Category; name: string; tags: string[]; emotion: EmotionId; h
 export function hooksFor(cat: Category, emotion: EmotionId): string[] { return [...new Set([...(CATS.find(c => c.cat === cat)?.hooks ?? []), ...EMOTIONS[emotion].hooks])]; }
 
 export interface Template { id: string; name: string; category: Category; tags: string[]; width: number; height: number; style: Style; needsPhoto: boolean; emotion: EmotionId; palette: Palette; emojis: string[]; art: ArtKind; hooks: string[]; copy: Copy; fields: string[]; animation: "fade-up" | "slide-left" | "zoom-in" }
-const SIZE: Record<Style, [number, number]> = { hero: [1080, 1350], split: [1080, 1080], burst: [1080, 1080], poster: [1080, 1920] };
-const STYLE_LABEL: Record<Style, string> = { hero: "Photo hero", split: "Photo + card", burst: "Emoji burst", poster: "Bold poster" };
+const SIZE: Record<Style, [number, number]> = { hero: [1080, 1350], split: [1080, 1080], magazine: [1080, 1350], circle: [1080, 1080], burst: [1080, 1080], poster: [1080, 1920] };
+const STYLE_LABEL: Record<Style, string> = { hero: "Photo hero", split: "Photo + card", magazine: "Magazine", circle: "Round photo", burst: "Emoji burst", poster: "Bold poster" };
 export const TEMPLATES: Template[] = CATS.flatMap((c, i) => {
   const e = EMOTIONS[c.emotion], mk = (style: Style): Template => ({ id: `${c.cat}-${style}`, name: `${c.name} — ${STYLE_LABEL[style]}`, category: c.cat, tags: c.tags, width: SIZE[style][0], height: SIZE[style][1], style, needsPhoto: isPhotoStyle(style), emotion: c.emotion, palette: e.palette, emojis: e.emojis, art: e.art, hooks: c.hooks, copy: c.copy, fields: ["hook", "headline", "subtitle", "cta"], animation: "zoom-in" });
-  return [mk(i % 2 ? "split" : "hero"), mk(i % 2 ? "poster" : "burst")]; });
+  return [mk(i % 2 ? "split" : "hero"), mk(i % 2 ? "circle" : "magazine"), mk("burst"), mk("poster")]; });
 
 // ---------------- layout engine ----------------
 export const pillWidth = (text: string, size: number, maxW: number) => Math.round(Math.min(maxW, Array.from(text).length * size * 0.62 + size * 2));
@@ -77,6 +77,18 @@ export function layoutFor(o: LayoutInput): { background: Fill; layers: Layer[] }
     layers = [A("art", "dots", 0, 0, W, H, "#FFFFFF", pal.secondary, 7, 0.1), R("accent", "ellipse", px + pw * 0.25, py - m * 0.3, pw * 0.8, pw * 0.8, S(pal.primary), { opacity: 0.45 }), photoLayer(px, py, pw, ph, frame),
       ...badge(land ? px - u * 0.1 : m * 0.4, m * 0.5, u * 0.22), emoji("emoji", emojis[0], land ? px - box * 0.55 : W - m - box * 0.9, land ? H - m - box : py + ph - box * 0.7, sticker, -8),
       ...(land ? block(m, W * 0.54 - 2 * m, m, H - m, "center", "left") : block(m, W - 2 * m, py + ph + m * 0.5, H - m, "bottom", "left"))];
+  } else if (style === "magazine") {
+    background = S(pal.bg); const cardFill = S(shade(pal.primary, 0.5)), lift = { dx: 0, dy: u * 0.02, blur: u * 0.05, color: "#000000AA" };
+    if (land) { const cardX = W * 0.46, cardW = W - cardX - m * 0.6;
+      layers = [photoLayer(0, 0, W * 0.8, H), R("accent", "rect", cardX, m, cardW, H - 2 * m, cardFill, { cornerRadius: u * 0.04, shadow: lift }), ...badge(m * 0.6, m * 0.6, u * 0.22), emoji("emoji", emojis[0], cardX - box * 0.6, H - m - box * 1.1, sticker, -8), ...block(cardX + m * 0.6, cardW - m * 1.2, m * 1.6, H - m * 1.6, "center", "left")];
+    } else { const cardH = blockH() + Math.round(m * 1.2), cardY = H - m * 0.6 - cardH;
+      layers = [photoLayer(0, 0, W, cardY + m), R("accent", "rect", m * 0.5, cardY, W - m, cardH, cardFill, { cornerRadius: u * 0.045, shadow: lift }), ...badge(m * 0.9, m * 0.9, u * 0.24), emoji("emoji", emojis[0], W - m - box, cardY - box * 0.8, sticker, 10), ...block(m * 1.1, W - m * 2.2, cardY + m * 0.6, cardY + cardH - m * 0.6, "bottom", "left")]; }
+  } else if (style === "circle") {
+    background = G(160, pal.bg, shade(pal.primary, 0.45)); const ring = { color: "#FFFFFF", width: Math.round(u * 0.012) }, lift = { dx: 0, dy: u * 0.02, blur: u * 0.05, color: "#000000AA" };
+    const Th = H - m * 0.9 - blockH() - m * 0.4, d = land ? H * 0.8 : Math.max(u * 0.25, Math.min(W * 0.68, (Th * 0.5 + m * 0.2) / 0.62)), cx = land ? W * 0.74 : W / 2, cy = land ? H / 2 : Th / 2 + m * 0.1;
+    layers = [A("art", "dots", 0, 0, W, H, "#FFFFFF", pal.secondary, 7, 0.1), R("ring", "ellipse", cx - d * 0.62, cy - d * 0.62, d * 1.24, d * 1.24, S("#FFFFFF"), { opacity: 0.12 }), R("accent", "ellipse", cx - d * 0.42, cy - d * 0.56, d, d, S(pal.primary), { opacity: 0.55 }),
+      photoLayer(cx - d / 2, cy - d / 2, d, d, { radius: d / 2, border: ring, shadow: lift }), emoji("emoji", emojis[0], cx + d * 0.22, cy + d * 0.26, sticker, 8), ...badge(land ? W * 0.5 - u * 0.1 : m * 0.6, m * 0.6, u * 0.22),
+      ...(land ? block(m, W * 0.46 - m, m, H - m, "center", "left") : block(m, W - 2 * m, 0, H - m * 0.9, "bottom", "center"))];
   } else if (style === "burst") {
     background = G(165, pal.primary, pal.bg);
     const Th = H - m * 0.9 - blockH() - m * 0.4, r = land ? H * 0.3 : Math.max(u * 0.08, Math.min(u * 0.2, (Th - m) / 2.7)), cx = land ? W * 0.76 : W / 2, cy = land ? H / 2 : Th / 2 + m * 0.2;

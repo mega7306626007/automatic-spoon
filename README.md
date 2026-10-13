@@ -19,6 +19,14 @@ Local-first advertising studio (web + Android). No accounts, API keys or backend
 - No stock photos are bundled (none can be redistributed from here): add your own photo, or use the graphic layouts. An empty photo area triggers a warning before export.
 - Emoji stickers use the device's emoji font (Segoe UI Emoji / Apple / Noto), so they look different per platform.
 
+**Real photos (new)**
+- 40 templates: every category has 2 photo layouts (full-photo hero / photo card / magazine / round photo) and 2 graphic layouts (emoji burst / bold poster). Switch layout any time in the editor.
+- No photos are bundled: Pexels/Unsplash licences forbid redistributing their photos in another library, and none could be licence-checked from here. Instead:
+  - **Offline library:** `PEXELS_API_KEY=your_key npm run photos -w @adforge/web` downloads real photos per category into `apps/web/public/stock` (git-ignored) with a credits manifest. The app then uses them with no internet.
+  - **In-app search:** Settings > Real photos (free Pexels key). Each search asks for confirmation; only your search words and key are sent. The photo picker (editor > 🔎 Stock photos) and Home > "Find a matching real photo for me" use it.
+  - Photographer credits are stored on the asset and added to captions.txt in the all-sizes ZIP.
+- Not verified live: I could not reach Pexels from my environment, so the search and download script are tested against stubbed responses only. Browser CORS for Pexels image downloads is unverified.
+
 **Automation**
 - Home → "Describe your ad": one sentence in; template picked by keywords, offline copy written, brand kit applied, text auto-fitted, Story + Banner sizes created, captions saved. Prices/offers/dates appear only if typed.
 - Auto-fit text (shrinks to the box, also while resizing), "Shrink to fit", align buttons, "Fix contrast automatically".

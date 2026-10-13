@@ -17,7 +17,8 @@ export type Layer = TextLayer | ImageLayer | ShapeLayer | ArtLayer;
 export interface Palette { bg: string; primary: string; secondary: string; text: string; gold: string }
 /** Design-system info for template-built ads, so a design can be re-laid out (resize, mood change, brand kit). */
 export interface ProjectMeta { templateId?: string; style: string; emotion: string; emojis: string[]; palette: Palette; art: ArtKind; needsPhoto: boolean; font?: string }
-export interface AssetRef { id: string; kind: "image"|"video"|"audio"|"font"; mime: string; name: string; bytes?: number }
+export interface AssetCredit { author: string; url: string; source: string }
+export interface AssetRef { credit?: AssetCredit; id: string; kind: "image"|"video"|"audio"|"font"; mime: string; name: string; bytes?: number }
 export interface Project {
   schemaVersion: number; id: string; type: ProjectType; name: string;
   canvas: { width: number; height: number; background: Fill };

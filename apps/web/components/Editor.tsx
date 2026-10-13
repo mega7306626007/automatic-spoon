@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { alignTo, boundingBox, reorder, resizeLayers, type Align, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
+import { type AssetCredit, alignTo, boundingBox, reorder, resizeLayers, type Align, type Layer, type Project, type TextLayer, type ImageLayer, type Fill } from "@adforge/creative-schema";
 import { Scene } from "./Scene";
 import { snapMove, type Guide } from "../lib/snap";
 import { textOverflows } from "../lib/text";
@@ -11,7 +11,9 @@ import { setPillText } from "../lib/pill";
 import { EMOTION_LIST, TEMPLATES, hooksFor, type Category, type EmotionId } from "@adforge/template-library";
 import { renderProjectToBlob } from "../lib/render";
 import { makeZip } from "../lib/zip";
-import { toPackage, saveProject, loadCaptions } from "../lib/store";
+import { toPackage, saveProject, loadCaptions, type Settings } from "../lib/store";
+import { PhotoPicker } from "./PhotoPicker";
+import { creditLine } from "../lib/photos";
 import { FONTS } from "../lib/fonts";
 import { uid } from "../lib/sample";
 import { downscale, type Studio } from "../lib/useStudio";
@@ -31,10 +33,10 @@ const FillEditor = ({ f, onChange }: { f: Fill; onChange: (f: Fill) => void }) =
     <label>Colour<span className="row"><input type="color" value={c1.slice(0, 7)} onChange={e => onChange(f.kind === "solid" ? solid(e.target.value) : grad(e.target.value, c2))} />
       {f.kind === "gradient" && <><input type="color" value={c2.slice(0, 7)} onChange={e => onChange(grad(c1, e.target.value))} /><input className="input" style={{ width: 64 }} type="number" aria-label="Angle" value={f.angle ?? 160} onChange={e => onChange(grad(c1, c2, +e.target.value))} /></>}</span></label></div>; };
 
-export function Editor({ s }: { s: Studio }) {
+export function Editor({ s, settings }: { s: Studio; settings: Settings }) {
   const { p, assets, sel, setSel } = s, layer = p.layers.find(l => l.id === sel) ?? null;
   const svgRef = useRef<SVGSVGElement>(null), drag = useRef<Drag | null>(null), fileRef = useRef<HTMLInputElement>(null), replaceRef = useRef<HTMLInputElement>(null);
-  const [guides, setGuides] = useState<Guide[]>([]), [msg, setMsg] = useState(""), [scale, setScale] = useState(1), [busy, setBusy] = useState(false), [help, setHelp] = useState(false);
+  const [guides, setGuides] = useState<Guide[]>([]), [msg, setMsg] = useState(""), [scale, setScale] = useState(1), [busy, setBusy] = useState(false), [help, setHelp] = useState(false), [picker, setPicker] = useState(false);
   useEffect(() => { try { if (localStorage.getItem("adforge-tips") !== "1") setHelp(true); } catch {} }, []);
   const closeHelp = () => { setHelp(false); try { localStorage.setItem("adforge-tips", "1"); } catch {} };
   const [cw, setCw] = useState(p.canvas.width), [ch, setCh] = useState(p.canvas.height);
@@ -78,14 +80,15 @@ export function Editor({ s }: { s: Studio }) {
     try { const designs = [{ label: "current", d: p }, ...otherSizes(p).map(d => ({ label: d.name.split(" — ").pop()!, d }))], files: { name: string; data: Uint8Array }[] = [];
       for (let i = 0; i < designs.length; i++) { const { label, d } = designs[i]; setMsg(`Rendering ${i + 1}/${designs.length}…`); const blob = await renderProjectToBlob(d, assets, "png", scale);
         files.push({ name: `${stamp()}-${label.toLowerCase()}-${d.canvas.width}x${d.canvas.height}.png`, data: new Uint8Array(await blob.arrayBuffer()) }); }
-      const cap = await loadCaptions(p.id).catch(() => undefined); if (cap) files.push({ name: "captions.txt", data: new TextEncoder().encode(cap) });
+      const cap = await loadCaptions(p.id).catch(() => undefined), credits = p.assets.filter(a => a.credit && assets[a.id]).map(a => creditLine(a.credit!)), txt = [cap ?? "", credits.length ? "\nCredits:\n" + credits.join("\n") : ""].join("\n").trim(); if (txt) files.push({ name: "captions.txt", data: new TextEncoder().encode(txt) });
       saveBlob(new Blob([makeZip(files) as BlobPart], { type: "application/zip" }), `${stamp()}-all-sizes.zip`); setMsg(`Downloaded ZIP with ${files.length} files`);
     } catch (e) { setMsg("ZIP failed: " + (e as Error).message); } finally { setBusy(false); } }
   async function makeSizes() {
     try { const list = otherSizes(p); for (const d of list) await saveProject(d, assets); setMsg(`Created ${list.length} designs (${list.map(d => d.name.split(" — ").pop()).join(", ")}). Find them in Projects.`); } catch (e) { setMsg("Could not create sizes: " + (e as Error).message); } }
-  async function pickImage(f: File | undefined, replace?: boolean) { if (!f) return; try { setMsg("Importing photo…"); const d = await downscale(f), id = s.registerAsset(d.dataUrl, f.name);
+  const placePhoto = (d: { dataUrl: string; w: number; h: number }, name: string, credit?: AssetCredit, replace?: boolean) => { const id = s.registerAsset(d.dataUrl, name, credit);
     const target = replace && layer?.type === "image" ? layer : p.layers.find(l => l.type === "image" && !assets[l.assetId]);
-    if (target) s.upd(target.id, { assetId: id } as Partial<ImageLayer>); else s.addImageLayer(id, d.w, d.h, f.name.replace(/\.[^.]+$/, "")); setMsg(""); } catch (e) { setMsg((e as Error).message); } }
+    if (target) s.upd(target.id, { assetId: id } as Partial<ImageLayer>); else s.addImageLayer(id, d.w, d.h, name.replace(/\.[^.]+$/, "")); };
+  async function pickImage(f: File | undefined, replace?: boolean) { if (!f) return; try { setMsg("Importing photo…"); const d = await downscale(f); placePhoto(d, f.name, undefined, replace); setMsg(""); } catch (e) { setMsg((e as Error).message); } }
   const emptyPhoto = p.layers.some(l => l.type === "image" && !assets[l.assetId]);
   const okToExport = () => !emptyPhoto || confirm("This design still has an empty photo area. Add your photo first (press 📷 Add photo), or download anyway?");
   const base = { rotation: 0, opacity: 1 };
@@ -104,7 +107,7 @@ export function Editor({ s }: { s: Studio }) {
     <div className="stage">
       <div className="toolbar">
         <button className="btn" title="Add a text box" onClick={addText}>＋ Text</button><button className="btn" title="Add a rectangle" onClick={() => addShape("rect")}>▭ Rectangle</button><button className="btn" title="Add a circle" onClick={() => addShape("ellipse")}>◯ Circle</button>
-        <button className="btn" title="Add your photo or logo from your device" onClick={() => fileRef.current?.click()}>📷 Add photo</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
+        <button className="btn" title="Add your photo or logo from your device" onClick={() => fileRef.current?.click()}>📷 Add photo</button><button className="btn" title="Find a real photo: your offline library or Pexels" onClick={() => setPicker(true)}>🔎 Stock photos</button><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ""; }} />
         <span className="sep" /><button className="btn" title="Undo (Ctrl+Z)" disabled={!s.canUndo} onClick={s.undo}>↶ Undo</button><button className="btn" title="Redo (Ctrl+Y)" disabled={!s.canRedo} onClick={s.redo}>↷ Redo</button>
         <span style={{ flex: 1 }} /><button className="btn" onClick={() => (help ? closeHelp() : setHelp(true))}>? How it works</button>
         <button className="btn" title="Save an editable copy of this design as a file" onClick={() => saveBlob(new Blob([JSON.stringify(toPackage(p, assets))], { type: "application/json" }), `${p.name}.adforge.json`)}>Save file</button>
@@ -149,7 +152,8 @@ export function Editor({ s }: { s: Studio }) {
           <label>Fit<select className="input" value={layer.fit} onChange={e => s.upd(layer.id, { fit: e.target.value } as Partial<ImageLayer>)}><option value="cover">Crop to fill</option><option value="contain">Fit inside</option></select></label>
           <label>Focus<span className="row"><select className="input" style={{ flex: 1 }} aria-label="Horizontal focus" value={layer.focusX ?? 0.5} onChange={e => s.upd(layer.id, { focusX: +e.target.value } as Partial<ImageLayer>)}><option value={0}>Left</option><option value={0.5}>Centre</option><option value={1}>Right</option></select>
             <select className="input" style={{ flex: 1 }} aria-label="Vertical focus" value={layer.focusY ?? 0.5} onChange={e => s.upd(layer.id, { focusY: +e.target.value } as Partial<ImageLayer>)}><option value={0}>Top</option><option value={0.5}>Middle</option><option value={1}>Bottom</option></select></span></label>
-          <button className="btn" onClick={() => replaceRef.current?.click()}>Replace image…</button><input ref={replaceRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0], true); e.target.value = ""; }} /></>}
+          {(() => { const c = p.assets.find(a => a.id === layer.assetId)?.credit; return c ? <div className="muted">📷 {creditLine(c)}</div> : null; })()}
+          <button className="btn" onClick={() => replaceRef.current?.click()}>Replace image…</button><button className="btn" onClick={() => setPicker(true)}>Find stock photo…</button><input ref={replaceRef} type="file" accept="image/*" hidden onChange={e => { pickImage(e.target.files?.[0], true); e.target.value = ""; }} /></>}
         {num("x", "X")}{num("y", "Y")}{num("w", "Width")}{num("h", "Height")}{num("rotation", "Rotate")}
         <label>Opacity<input type="range" min={0} max={1} step={0.05} value={layer.opacity} onChange={e => s.upd(layer.id, { opacity: +e.target.value })} /></label>
         {layer.type !== "text" && <label>Border<span className="row"><input type="color" value={(layer.border?.color ?? "#FFFFFF").slice(0, 7)} onChange={e => s.upd(layer.id, { border: { color: e.target.value, width: layer.border?.width ?? 6 } })} /><input className="input" style={{ width: 70 }} type="number" min={0} value={layer.border?.width ?? 0} onChange={e => s.upd(layer.id, { border: +e.target.value > 0 ? { color: layer.border?.color ?? "#FFFFFF", width: +e.target.value } : undefined })} /></span></label>}
@@ -163,5 +167,5 @@ export function Editor({ s }: { s: Studio }) {
       <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}><b>Layers</b>
         {[...p.layers].reverse().map(l => <div key={l.id} className={"layer" + (sel === l.id ? " on" : "")} onClick={() => setSel(l.id)}><span style={{ opacity: l.visible === false ? 0.4 : 1 }}>{l.type === "text" ? "T" : l.type === "image" ? "▣" : l.type === "art" ? "✦" : "◆"} {nice(l.name)}</span>
           <span className="row" style={{ gap: 2 }}><button className="chip" title="Show/hide" onClick={e => { e.stopPropagation(); s.upd(l.id, { visible: l.visible === false }); }}>{l.visible === false ? "show" : "hide"}</button><button className="chip" title="Lock/unlock" onClick={e => { e.stopPropagation(); s.upd(l.id, { locked: !l.locked }); }}>{l.locked ? "unlock" : "lock"}</button></span></div>)}</div>
-    </aside></div>;
+    </aside>{picker && <PhotoPicker settings={settings} onClose={() => setPicker(false)} onPick={f => { placePhoto(f, f.name, f.credit, layer?.type === "image"); setPicker(false); }} />}</div>;
 }

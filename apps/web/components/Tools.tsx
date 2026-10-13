@@ -88,6 +88,11 @@ export function SettingsView({ settings, setSettings }: { settings: Settings; se
       <input className="input" placeholder="Endpoint URL (https://…)" value={settings.endpoint} onChange={e => upd({ endpoint: e.target.value.trim() })} />
       <input className="input" type="password" placeholder="API key (optional)" value={settings.apiKey} onChange={e => upd({ apiKey: e.target.value })} />
       <span className="muted">The key is stored only in this browser (not encrypted). The endpoint must accept POST {"{ brief }"} and return JSON with headlines, supporting, hooks, ctas, captions, hashtags. Output is validated before use. No provider is bundled; quotas and privacy depend on the one you choose.</span></div>
+    <div className="card" style={{ marginTop: 14, display: "grid", gap: 10, maxWidth: 560 }}><b>Real photos (optional)</b>
+      <span className="muted"><b>Offline library:</b> run <code>PEXELS_API_KEY=your_key npm run photos -w @adforge/web</code> once. Photos are saved on this computer and used without internet. <b>Search inside AdForge:</b> turn on below with a free Pexels key.</span>
+      <label className="row"><input type="checkbox" checked={settings.photosEnabled} onChange={e => { if (e.target.checked && !confirm("Photo search sends your search words and your Pexels API key to api.pexels.com. Your designs and images are never uploaded. You are asked before each search. Enable?")) return; upd({ photosEnabled: e.target.checked }); }} />Allow Pexels photo search</label>
+      <input className="input" type="password" placeholder="Pexels API key (free at pexels.com/api)" value={settings.pexelsKey} onChange={e => upd({ pexelsKey: e.target.value })} />
+      <span className="muted">Photos are from Pexels (free licence). Photographer credits are saved with each photo and added to your ZIP downloads. The key is stored only in this browser.</span></div>
     <div className="card" style={{ marginTop: 14, maxWidth: 560 }}><b>Local data</b><p className="muted">Projects, images, brand kits and settings are stored in this browser only.</p>
       <button className="btn danger" onClick={async () => { if (confirm("Delete ALL projects, images, brand kits and settings from this device?")) { await clearAll(); location.reload(); } }}>Delete all local data</button><span className="muted"> {msg}</span></div></div>;
 }

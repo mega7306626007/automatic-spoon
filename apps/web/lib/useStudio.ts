@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import type { Layer, Project } from "@adforge/creative-schema";
+import type { AssetCredit, Layer, Project } from "@adforge/creative-schema";
 import { init, commit, replace, checkpoint, undo, redo, type History } from "./history";
 import { saveProject, loadProject, getLastId, setLastId, type Assets } from "./store";
 import { instantiate, recommendTemplate } from "@adforge/template-library";
@@ -30,8 +30,8 @@ export function useStudio() {
   const add = useCallback((l: Layer) => { mutate(q => ({ ...q, layers: [...q.layers, l] })); setSel(l.id); }, [mutate]);
   const del = useCallback(() => { if (sel) { mutate(q => ({ ...q, layers: q.layers.filter(l => l.id !== sel) })); setSel(null); } }, [mutate, sel]);
   const openProject = useCallback((pr: Project, a: Assets = {}) => { setH(init(pr)); setAssets(a); setSel(null); setRecovered(false); }, []);
-  const registerAsset = useCallback((dataUrl: string, name: string) => { const id = uid(); setAssets(a => ({ ...a, [id]: dataUrl }));
-    mutate(q => ({ ...q, assets: [...q.assets, { id, kind: "image", mime: dataUrl.slice(5, dataUrl.indexOf(";")), name }] })); return id; }, [mutate]);
+  const registerAsset = useCallback((dataUrl: string, name: string, credit?: AssetCredit) => { const id = uid(); setAssets(a => ({ ...a, [id]: dataUrl }));
+    mutate(q => ({ ...q, assets: [...q.assets, { id, kind: "image", mime: dataUrl.slice(5, dataUrl.indexOf(";")), name, ...(credit ? { credit } : {}) }] })); return id; }, [mutate]);
   const addImageLayer = useCallback((assetId: string, w: number, h2: number, name: string) => { const cw = p.canvas.width, k = Math.min(cw * 0.5 / w, p.canvas.height * 0.5 / h2);
     add({ id: uid(), name, type: "image", assetId, fit: "cover", x: (cw - w * k) / 2, y: (p.canvas.height - h2 * k) / 2, w: w * k, h: h2 * k, rotation: 0, opacity: 1 }); }, [add, p.canvas.width, p.canvas.height]);
   return { h, p, assets, sel, setSel, status, setStatus, recovered, ready, mutate, live, upd, liveLayer, add, del, openProject, registerAsset, addImageLayer,
